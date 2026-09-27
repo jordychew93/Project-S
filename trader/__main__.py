@@ -4,6 +4,7 @@
     python -m trader run --offline  trade using the cached CSVs in data/
     python -m trader status         show open positions, pending orders and equity
     python -m trader backtest       replay the cached history from a fresh $100k account
+    python -m trader --strategy trend run    pick a strategy: sr (default), trend or both
 """
 
 import argparse
@@ -47,12 +48,16 @@ def print_status(p):
         print("\nOpen positions:")
         for sym, pos in sorted(p.positions.items()):
             last = p.last_price.get(sym, pos["entry"])
-            print(f"  {sym:<7} {pos['units']:>12.6g} @ {pos['entry']:<10.5g} last {last:<10.5g} "
-                  f"stop {pos['stop']:<10.5g} P&L ${pos['units'] * (last - pos['entry']):>10,.2f}")
+            side = pos.get("side", 1)
+            tgt = f"target {pos['target']:<10.5g}" if pos.get("target") is not None else ""
+            print(f"  {'LONG ' if side == 1 else 'SHORT'} {sym:<7} {pos['units']:>12.6g} @ {pos['entry']:<10.5g} "
+                  f"last {last:<10.5g} stop {pos['stop']:<10.5g} {tgt} "
+                  f"P&L ${side * pos['units'] * (last - pos['entry']):>10,.2f}")
     if p.pending:
         print("\nOrders waiting for the next open:")
         for sym, o in sorted(p.pending.items()):
-            print(f"  {sym:<7} {o['setup']:<9} signal close {o['close']:.5g}  ({o['reason']})")
+            word = "BUY " if o.get("side", 1) == 1 else "SELL"
+            print(f"  {word} {sym:<7} {o['setup']:<20} signal close {o['close']:.5g}  ({o['reason']})")
     if not p.positions and not p.pending:
         print("\nFlat: no positions and no orders. Waiting for a setup.")
 
@@ -66,9 +71,9 @@ def cmd_run(args):
         print("No new bars to process.")
     else:
         print(f"Scanned {p.scanned} new bar(s) across {len(universe)} symbols.")
-        print("\n".join(p.events) or "No buy setups today. Standing aside.")
+        print("\n".join(p.events) or "No buy or sell setups today. Standing aside.")
         if p.watch:
-            print("\nWatchlist (in an uptrend, waiting for a trigger):")
+            print("\nKey levels (nearest support below / resistance above):")
             for sym, note in sorted(p.watch.items()):
                 print(f"  {sym:<7} {note}")
     p.save(STATE)
@@ -95,11 +100,15 @@ def cmd_backtest(_):
 def main():
     parser = argparse.ArgumentParser(prog="trader")
     sub = parser.add_subparsers(dest="cmd", required=True)
+    parser.add_argument("--strategy", choices=["sr", "trend", "both"],
+                        help="override config.STRATEGY (sr = support & resistance)")
     run = sub.add_parser("run")
     run.add_argument("--offline", action="store_true")
     sub.add_parser("status")
     sub.add_parser("backtest")
     args = parser.parse_args()
+    if args.strategy:
+        config.STRATEGY = args.strategy
     {"run": cmd_run, "status": cmd_status, "backtest": cmd_backtest}[args.cmd](args)
 
 

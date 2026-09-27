@@ -1,8 +1,16 @@
-"""Entry rules: only buy in an established uptrend, either on a pullback that turns up or on a volume breakout."""
+"""Entry rules.
 
-from dataclasses import dataclass
+Two strategies, picked with config.STRATEGY:
+  trend: in an established trend, enter on a pullback that turns or on a volume breakout.
+  sr:    trade support and resistance: bounce off a level, or retest a level that just broke.
 
-from . import config
+Every rule is written for buying. Sell (short) setups are found by running the same rules on
+the price series flipped upside down (see `flip`), so buys and sells are exact mirror images.
+"""
+
+from dataclasses import dataclass, replace
+
+from . import config, levels
 from .indicators import atr, rsi, sma
 
 
@@ -11,18 +19,55 @@ class Signal:
     symbol: str
     asset_class: str
     date: str
-    setup: str          # "pullback" or "breakout"
+    setup: str          # "pullback", "breakout", "support_bounce", "breakout_retest" (sells: mirrored)
     close: float
     atr: float
     score: float        # higher is better; used to rank same-day signals
     reason: str
+    side: int = 1       # 1 = buy, -1 = sell short
+    stop: float = None  # explicit stop price; None means STOP_ATR x ATR from the fill
+    target: float = None
+
+
+SELL_NAMES = {"pullback": "rally_fade", "breakout": "breakdown", "support_bounce": "resistance_rejection",
+              "breakout_retest": "breakdown_retest"}
+
+
+def flip(bars):
+    """Mirror a price series upside down: highs become lows and every price is negated."""
+    return [{"date": b["date"], "open": -b["open"], "high": -b["low"], "low": -b["high"],
+             "close": -b["close"], "volume": b.get("volume")} for b in bars]
 
 
 def evaluate(symbol, asset_class, bars):
-    """Return a Signal if the last bar in `bars` is a buy setup, else None.
+    """Return the best buy or sell Signal for the last bar in `bars`, or None.
 
     `bars` is a list of dicts with date/open/high/low/close/volume, oldest first.
     """
+    finders = {"trend": [_trend_long], "sr": [_sr_long], "both": [_trend_long, _sr_long]}[config.STRATEGY]
+    sides = [1, -1] if config.ALLOW_SHORTS else [1]
+    found = []
+    for side in sides:
+        series = bars if side == 1 else flip(bars)
+        for finder in finders:
+            sig = finder(symbol, asset_class, series)
+            if sig:
+                found.append(sig if side == 1 else _unflip(sig))
+    return max(found, key=lambda s: s.score) if found else None
+
+
+def _unflip(sig):
+    return replace(sig, side=-1, setup=SELL_NAMES[sig.setup], close=-sig.close,
+                   stop=None if sig.stop is None else -sig.stop,
+                   target=None if sig.target is None else -sig.target,
+                   reason=sig.reason.replace("RSI low", "RSI high").replace("prior high", "prior low")
+                                    .replace("uptrend", "downtrend").replace("bounce off level", "rejected at level")
+                                    .replace("retest of broken level", "retest of broken support")
+                                    .replace("breakout through", "breakdown through"))
+
+
+def _trend_long(symbol, asset_class, bars):
+    """Trend strategy, buy side."""
     if len(bars) < config.MIN_BARS:
         return None
     closes = [b["close"] for b in bars]
@@ -47,7 +92,7 @@ def evaluate(symbol, asset_class, bars):
     if c > sma20[i] + 3 * a:
         return None
 
-    momentum = (c - closes[i - 20]) / closes[i - 20]
+    momentum = (c - closes[i - 20]) / abs(closes[i - 20])
     trend_strength = (c - sma50[i]) / a
 
     # Setup A: RSI dipped to oversold-for-an-uptrend in the last 5 bars, and today closes above yesterday's high.
@@ -65,8 +110,66 @@ def evaluate(symbol, asset_class, bars):
         vol_note = f", volume {volumes[i] / avg_vol:.1f}x avg" if avg_vol else ""
         return Signal(symbol, asset_class, bars[i]["date"], "breakout", c, a,
                       score=1.0 + momentum + 0.05 * trend_strength,
-                      reason=f"20-day breakout above {prior_high:.4g}{vol_note}, RSI {rsi14[i]:.0f}")
+                      reason=f"20-day breakout through {abs(prior_high):.5g}{vol_note}, RSI {rsi14[i]:.0f}")
     return None
+
+
+def _sr_long(symbol, asset_class, bars):
+    """Support & resistance strategy, buy side.
+
+    support_bounce:  price dips into a support zone and closes back above it with a strong candle.
+    breakout_retest: price broke above a resistance zone recently, came back to test it from above
+                     (old resistance acting as new support) and held.
+    The target is the next zone above; the trade is skipped unless it pays at least MIN_REWARD_RISK.
+    """
+    if len(bars) < config.MIN_BARS:
+        return None
+    closes = [b["close"] for b in bars]
+    atr14 = atr([b["high"] for b in bars], [b["low"] for b in bars], closes, config.ATR_PERIOD)
+    sma50 = sma(closes, 50)
+    i = len(bars) - 1
+    bar, a = bars[i], atr14[i]
+    if a is None or a <= 0 or sma50[i - 10] is None:
+        return None
+    # Don't buy support while the bigger picture is falling hard.
+    if sma50[i] < sma50[i - 10] - 0.5 * a:
+        return None
+    rng = bar["high"] - bar["low"]
+    strong_close = bar["close"] > bar["open"] and rng > 0 and (bar["close"] - bar["low"]) / rng >= 0.5
+    if not strong_close:
+        return None
+
+    zones = levels.find_zones(bars[:i], a)   # levels as known before today
+    recent_high = max(b["high"] for b in bars[i - 20:i])
+    touch = config.TOUCH_ATR * a
+    best = None
+    for z in zones:
+        tested = bar["low"] <= z.high + touch and bar["low"] >= z.low - a and bar["close"] > z.high
+        if not tested:
+            continue
+        recent = closes[i - config.RETEST_LOOKBACK:i]
+        earlier = closes[max(0, i - 40):i - config.RETEST_LOOKBACK]
+        if any(c > z.high + touch for c in recent) and earlier and min(earlier) < z.low:
+            setup, what = "breakout_retest", "retest of broken level"
+        else:
+            setup, what = "support_bounce", "bounce off level"
+        stop = z.low - config.SR_STOP_ATR * a
+        # The first obstacle overhead is the target: the next zone, or the recent 20-day high, whichever
+        # is nearer. If price is already inside a zone, there's no room and the trade is skipped.
+        overhead = [y.low for y in zones if y is not z and y.high > bar["close"]]
+        overhead += [recent_high] if recent_high > bar["close"] else []
+        target = min(overhead) if overhead else bar["close"] + config.DEFAULT_TARGET_R * (bar["close"] - stop)
+        rr = (target - bar["close"]) / (bar["close"] - stop)
+        if rr < config.MIN_REWARD_RISK:
+            continue
+        lo, hi = sorted((abs(z.low), abs(z.high)))
+        sig = Signal(symbol, asset_class, bar["date"], setup, bar["close"], a,
+                     score=3.0 + min(rr, 5) * 0.2 + z.touches * 0.1,
+                     reason=f"{what} {lo:.5g}-{hi:.5g} ({z.touches} touches), reward:risk {rr:.1f}",
+                     stop=stop, target=target)
+        if best is None or sig.score > best.score:
+            best = sig
+    return best
 
 
 def trend_broken(bars):
@@ -77,17 +180,18 @@ def trend_broken(bars):
 
 
 def watch_note(bars):
-    """For a symbol in an uptrend with no signal yet, describe what would trigger a buy."""
+    """Describe where price sits between its nearest support and resistance levels."""
     if len(bars) < config.MIN_BARS:
         return None
     closes = [b["close"] for b in bars]
-    s20, s50 = sma(closes, 20)[-1], sma(closes, 50)[-1]
-    if not (closes[-1] > s50 and s20 > s50):
+    a = atr([b["high"] for b in bars], [b["low"] for b in bars], closes, config.ATR_PERIOD)[-1]
+    if not a:
         return None
-    r = rsi(closes, 14)[-1]
-    trigger = max(b["high"] for b in bars[-20:])
-    vol = " on 1.5x volume" if bars[-1].get("volume") else ""
-    note = f"breakout needs close > {trigger:.5g} ({trigger / closes[-1] - 1:+.1%}){vol}"
-    if r >= 75:
-        note += ", but RSI too hot to chase"
-    return f"RSI {r:.0f}, {note}; or a dip to RSI <= 40 that turns up"
+    c = closes[-1]
+    below, above = levels.nearest(levels.find_zones(bars, a), c)
+    parts = []
+    if below:
+        parts.append(f"support {below.low:.5g}-{below.high:.5g} ({(below.high - c) / c:+.1%}, {below.touches}x)")
+    if above:
+        parts.append(f"resistance {above.low:.5g}-{above.high:.5g} ({(above.low - c) / c:+.1%}, {above.touches}x)")
+    return "  |  ".join(parts) or None

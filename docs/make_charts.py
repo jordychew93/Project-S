@@ -127,3 +127,28 @@ for i, (n, x) in enumerate(rows):
 ax.grid(axis="y", visible=False); ax.set_xlabel("Rise needed to break the 20-day high (%)"); ax.set_xlim(0, 6.5)
 fig.savefig(f"{OUT}/5_watchlist.png", dpi=150); plt.close(fig)
 print("ok")
+
+# 6. Support & resistance levels found automatically, small multiples
+from trader import levels
+picks = [("stock", "SPY"), ("stock", "QQQ"), ("stock", "NVDA"), ("crypto", "BTC"), ("fx", "EURUSD"), ("fx", "AUDUSD")]
+fig, axes = plt.subplots(3, 2, figsize=(11, 10.5))
+fig.subplots_adjust(top=0.865, left=0.07, right=0.97, bottom=0.05, hspace=0.38, wspace=0.18)
+title(fig, "Support & resistance · levels the bot found by itself",
+      "Green = support below price · red = resistance above · grey = price is inside the level · darker = more touches")
+for ax, (ac, sym) in zip(axes.flat, picks):
+    full, _ = load(ac, sym)
+    fc = [x["close"] for x in full]
+    a = atr([x["high"] for x in full], [x["low"] for x in full], fc, 14)[-1]
+    zones = levels.find_zones(full, a)          # same levels the bot uses
+    b, d = load(ac, sym); b, d = b[-90:], d[-90:]
+    c = [x["close"] for x in b]
+    lo, hi = min(x["low"] for x in b), max(x["high"] for x in b)
+    for z in [z for z in zones if z.high >= lo - a and z.low <= hi + a]:
+        col = GOOD if z.high < c[-1] else CRIT if z.low > c[-1] else INK2
+        ax.axhspan(z.low - a * 0.05, z.high + a * 0.05, color=col, alpha=min(0.12 + 0.05 * z.touches, 0.45), lw=0)
+    ax.plot(d, c, color=BLUE, lw=1.6)
+    ax.scatter([d[-1]], [c[-1]], s=30, color=BLUE, zorder=5)
+    ax.set_title(sym, loc="left", fontsize=12, weight="bold", color=INK)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%b")); ax.xaxis.set_major_locator(mdates.MonthLocator())
+fig.savefig(f"{OUT}/6_levels.png", dpi=150); plt.close(fig)
+print("levels chart ok")

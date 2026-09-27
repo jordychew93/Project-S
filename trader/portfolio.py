@@ -56,7 +56,8 @@ class Portfolio:
 
     # ----- accounting --------------------------------------------------
     def equity(self):
-        return self.cash + sum(p["units"] * self.last_price.get(s, p["entry"]) for s, p in self.positions.items())
+        return self.cash + sum(p["units"] * (p["entry"] + p.get("side", 1) * (self.last_price.get(s, p["entry"]) - p["entry"]))
+                               for s, p in self.positions.items())
 
     def _log(self, date, msg):
         self.events.append(f"{date}  {msg}")
@@ -102,75 +103,110 @@ class Portfolio:
         slots = config.MAX_OPEN_POSITIONS - len(self.positions) - len(self.pending)
         for sig in sorted(signals, key=lambda s: s.score, reverse=True)[:max(slots, 0)]:
             self.pending[sig.symbol] = asdict(sig)
-            self._log(date, f"BUY ORDER  {sig.symbol:<7} {sig.setup:<9} close {sig.close:.5g}  ({sig.reason}) -> fills next open")
+            word = "BUY ORDER " if sig.side == 1 else "SELL ORDER"
+            levels = "".join(f"  {k} {v:.5g}" for k, v in (("stop", sig.stop), ("target", sig.target)) if v is not None)
+            self._log(date, f"{word} {sig.symbol:<7} {sig.setup:<20} close {sig.close:.5g}{levels}  ({sig.reason}) -> fills next open")
+
+    # All position maths below runs in "side space": prices are multiplied by the side (+1 long,
+    # -1 short) so a short is handled exactly like a long on an upside-down chart.
 
     def _fill_pending(self, sym, asset_class, bar):
         order = self.pending.pop(sym, None)
         if not order:
             return
-        price = bar["open"] * (1 + config.SLIPPAGE[asset_class])
-        stop = price - config.STOP_ATR * order["atr"]
-        risk_per_unit = price - stop
+        side = order.get("side", 1)
+        f = lambda x: side * x
+        bar_f = bar if side == 1 else strategy.flip([bar])[0]
+        entry_f = bar_f["open"] + abs(bar_f["open"]) * config.SLIPPAGE[asset_class]
+        if order.get("stop") is not None:
+            stop_f = f(order["stop"])
+            if bar_f["open"] <= stop_f:
+                self._log(bar["date"], f"SKIP       {sym:<7} opened beyond the stop")
+                return
+        else:
+            stop_f = entry_f - config.STOP_ATR * order["atr"]
+        target_f = f(order["target"]) if order.get("target") is not None else None
+        if target_f is not None and bar_f["open"] >= target_f:
+            self._log(bar["date"], f"SKIP       {sym:<7} opened beyond the target")
+            return
+        entry, risk_per_unit = abs(entry_f), entry_f - stop_f
         equity = self.equity()
         units = min(equity * config.RISK_PER_TRADE / risk_per_unit,
-                    equity * config.MAX_NOTIONAL_PCT[asset_class] / price,
-                    self.cash / price)
+                    equity * config.MAX_NOTIONAL_PCT[asset_class] / entry,
+                    self.cash / entry)
         if asset_class == "stock":
             units = float(int(units))
         if units <= 0:
             self._log(bar["date"], f"SKIP       {sym:<7} not enough cash")
             return
-        self.cash -= units * price
+        self.cash -= units * entry
         self.positions[sym] = {
-            "asset_class": asset_class, "setup": order["setup"], "entry_date": bar["date"],
-            "entry": price, "units": units, "stop": stop, "initial_stop": stop,
-            "atr": order["atr"], "highest": bar["high"], "bars_held": 0,
+            "asset_class": asset_class, "setup": order["setup"], "side": side, "entry_date": bar["date"],
+            "entry": entry, "units": units, "stop": f(stop_f), "initial_stop": f(stop_f),
+            "target": order.get("target"), "atr": order["atr"], "extreme": f(bar_f["high"]), "bars_held": 0,
         }
-        self._log(bar["date"], f"BOUGHT     {sym:<7} {units:.6g} @ {price:.5g}  stop {stop:.5g}  "
-                               f"(risking ${units * risk_per_unit:,.0f}, {units * price / equity:.0%} of equity)")
+        word = "BOUGHT " if side == 1 else "SHORTED"
+        tgt = f"  target {order['target']:.5g}" if order.get("target") is not None else ""
+        self._log(bar["date"], f"{word}    {sym:<7} {units:.6g} @ {entry:.5g}  stop {f(stop_f):.5g}{tgt}  "
+                               f"(risking ${units * risk_per_unit:,.0f}, {units * entry / equity:.0%} of equity)")
 
     def _manage_position(self, sym, history):
         pos = self.positions.get(sym)
         if not pos:
             return
+        side = pos.get("side", 1)
+        f = lambda x: side * x
+        if side == -1:
+            history = strategy.flip(history[-60:])
         bar = history[-1]
+        entry_f, stop_f, init_f = f(pos["entry"]), f(pos["stop"]), f(pos["initial_stop"])
+        target_f = f(pos["target"]) if pos.get("target") is not None else None
+        slip = config.SLIPPAGE[pos["asset_class"]]
+        worse = lambda x: x - abs(x) * slip
+
         if bar["date"] == pos["entry_date"]:
-            exit_price = bar["low"] <= pos["stop"] and pos["stop"]
-            if exit_price:
-                self._close(sym, bar["date"], exit_price, "stop hit on entry day")
-            else:
-                pos["highest"] = max(pos["highest"], bar["high"])
+            if bar["low"] <= stop_f:
+                return self._close(sym, bar["date"], f(worse(stop_f)), "stop hit on entry day")
+            if target_f is not None and bar["high"] >= target_f:
+                return self._close(sym, bar["date"], f(target_f), "target hit on entry day")
+            pos["extreme"] = f(max(f(pos["extreme"]), bar["high"]))
             return
         pos["bars_held"] += 1
-        slip = config.SLIPPAGE[pos["asset_class"]]
-        if bar["open"] <= pos["stop"]:
-            return self._close(sym, bar["date"], bar["open"] * (1 - slip), "gapped below stop")
-        if bar["low"] <= pos["stop"]:
-            return self._close(sym, bar["date"], pos["stop"] * (1 - slip), "stop hit")
+        if bar["open"] <= stop_f:
+            return self._close(sym, bar["date"], f(worse(bar["open"])), "gapped through stop")
+        if bar["low"] <= stop_f:
+            return self._close(sym, bar["date"], f(worse(stop_f)), "stop hit")
+        if target_f is not None and bar["open"] >= target_f:
+            return self._close(sym, bar["date"], f(worse(bar["open"])), "gapped through target")
+        if target_f is not None and bar["high"] >= target_f:
+            return self._close(sym, bar["date"], f(target_f), "target hit")
 
         # Update stops using today's bar (they apply from tomorrow).
-        pos["highest"] = max(pos["highest"], bar["high"])
-        r = pos["entry"] - pos["initial_stop"]
-        reached_breakeven = pos["highest"] >= pos["entry"] + config.BREAKEVEN_R * r
+        extreme_f = max(f(pos["extreme"]), bar["high"])
+        pos["extreme"] = f(extreme_f)
+        reached_breakeven = extreme_f >= entry_f + config.BREAKEVEN_R * (entry_f - init_f)
         if reached_breakeven:
-            pos["stop"] = max(pos["stop"], pos["entry"], pos["highest"] - config.TRAIL_ATR * pos["atr"])
+            pos["stop"] = f(max(stop_f, entry_f, extreme_f - config.TRAIL_ATR * pos["atr"]))
 
-        # The trend exit protects open profit; before breakeven the ATR stop alone defines the risk.
+        # The trend exit protects open profit; before breakeven the stop alone defines the risk.
         if reached_breakeven and strategy.trend_broken(history):
-            return self._close(sym, bar["date"], bar["close"] * (1 - slip), "closed below 50-day average")
+            return self._close(sym, bar["date"], f(worse(bar["close"])), "trend broke (50-day average)")
         if pos["bars_held"] >= config.TIME_STOP_BARS and not reached_breakeven:
-            return self._close(sym, bar["date"], bar["close"] * (1 - slip), "time stop")
+            return self._close(sym, bar["date"], f(worse(bar["close"])), "time stop")
 
     def _close(self, sym, date, price, why):
         pos = self.positions.pop(sym)
-        self.cash += pos["units"] * price
-        pnl = pos["units"] * (price - pos["entry"])
-        r_mult = (price - pos["entry"]) / (pos["entry"] - pos["initial_stop"])
+        side = pos.get("side", 1)
+        pnl = side * pos["units"] * (price - pos["entry"])
+        self.cash += pos["units"] * pos["entry"] + pnl
+        r_mult = side * (price - pos["entry"]) / abs(pos["entry"] - pos["initial_stop"])
         self.last_price[sym] = price
         self.closed.append({
             "symbol": sym, "asset_class": pos["asset_class"], "setup": pos["setup"],
+            "side": "long" if side == 1 else "short",
             "entry_date": pos["entry_date"], "exit_date": date, "entry": round(pos["entry"], 6),
             "exit": round(price, 6), "units": pos["units"], "pnl": round(pnl, 2),
             "r_multiple": round(r_mult, 2), "exit_reason": why,
         })
-        self._log(date, f"SOLD       {sym:<7} @ {price:.5g}  {why}  P&L ${pnl:,.2f} ({r_mult:+.2f}R)")
+        word = "SOLD   " if side == 1 else "COVERED"
+        self._log(date, f"{word}    {sym:<7} @ {price:.5g}  {why}  P&L ${pnl:,.2f} ({r_mult:+.2f}R)")
