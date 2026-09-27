@@ -1,4 +1,4 @@
-# Project-S: swing-trading paper bot
+# Project T: swing-trading paper bot
 
 This bot scans US stocks, crypto and FX once a day for swing-trade setups. It **paper-trades** them from a $100,000 simulated account. It never places real orders.
 
