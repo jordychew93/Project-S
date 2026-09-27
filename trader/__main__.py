@@ -30,7 +30,7 @@ def load_universe(offline):
             try:
                 bars = data.load_cached(asset_class, sym) if offline else data.fetch(asset_class, sym, api_key)
                 if not offline:
-                    time.sleep(1)   # stay under the free-tier rate limit
+                    time.sleep(1.5)   # stay under the free-tier rate limit (1 request/second)
             except Exception as e:
                 print(f"warning: {sym}: {e}")
                 bars = data.load_cached(asset_class, sym)
@@ -62,11 +62,41 @@ def print_status(p):
         print("\nFlat: no positions and no orders. Waiting for a setup.")
 
 
+def write_report(path, p, universe):
+    """Markdown summary of this run, used for the GitHub issue comment and job summary."""
+    orders = [e for e in p.events if "ORDER" in e]
+    fills = [e for e in p.events if any(w in e for w in ("BOUGHT", "SHORTED", "SOLD", "COVERED"))]
+    dates = sorted(p.last_seen.values())
+    headline = (f"🚨 {len(orders)} new order(s)" if orders else "😴 No new buy or sell setups") + \
+               (f" · {len(fills)} fill/exit(s)" if fills else "")
+    lines = [f"## 📈 T daily scan · data to {dates[-1] if dates else '?'}", "", f"**{headline}**", "",
+             f"Equity **${p.equity():,.2f}** ({p.equity() / config.STARTING_CASH - 1:+.2%}) · "
+             f"{len(p.positions)} open position(s) · {len(p.pending)} pending order(s) · strategy `{config.STRATEGY}`", ""]
+    if p.events:
+        lines += ["### Activity", "```", *p.events, "```", ""]
+    if p.positions:
+        lines += ["### Open positions", "| | Symbol | Entry | Last | Stop | Target | P&L |", "|---|---|---|---|---|---|---|"]
+        for sym, pos in sorted(p.positions.items()):
+            side, last = pos.get("side", 1), p.last_price.get(sym, pos["entry"])
+            tgt = f"{pos['target']:.5g}" if pos.get("target") is not None else "trailing"
+            lines.append(f"| {'LONG' if side == 1 else 'SHORT'} | {sym} | {pos['entry']:.5g} | {last:.5g} | "
+                         f"{pos['stop']:.5g} | {tgt} | ${side * pos['units'] * (last - pos['entry']):,.2f} |")
+        lines.append("")
+    if p.watch:
+        lines += ["<details><summary>Key levels to watch</summary>", "", "```",
+                  *[f"{sym:<7} {note}" for sym, note in sorted(p.watch.items())], "```", "</details>", ""]
+    lines.append("_Paper trading only. Not financial advice._")
+    with open(path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+
 def cmd_run(args):
     os.makedirs(os.path.dirname(STATE), exist_ok=True)
     p = Portfolio.load(STATE)
     universe = load_universe(args.offline)
     p.run(universe, start_fresh_at_latest=True)
+    if args.report:
+        write_report(args.report, p, universe)
     if not p.scanned:
         print("No new bars to process.")
     else:
@@ -104,6 +134,7 @@ def main():
                         help="override config.STRATEGY (sr = support & resistance)")
     run = sub.add_parser("run")
     run.add_argument("--offline", action="store_true")
+    run.add_argument("--report", metavar="FILE", help="also write a markdown summary to FILE")
     sub.add_parser("status")
     sub.add_parser("backtest")
     args = parser.parse_args()

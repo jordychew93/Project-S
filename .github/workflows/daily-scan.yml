@@ -1,0 +1,85 @@
+name: T daily scan
+
+# Runs the paper-trading bot every weekday after the US close, commits the updated
+# account, and posts the report as a comment on the "T daily reports" issue, which
+# notifies you through GitHub (email and the mobile app).
+#
+# Setup (once): add a repository secret ALPHAVANTAGE_API_KEY
+#   (Settings -> Secrets and variables -> Actions -> New repository secret).
+# Optional phone pings via Telegram: add TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID secrets.
+
+on:
+  schedule:
+    - cron: "22 21 * * 1-5"   # 21:22 UTC, Mon-Fri (after the 16:00 New York close)
+  workflow_dispatch:           # "Run workflow" button for a manual scan
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: daily-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    env:
+      # Job-level so the optional Telegram step can check for them in its `if:`.
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: Tests
+        run: python -m unittest discover -s tests
+
+      - name: Scan the market and paper-trade
+        env:
+          ALPHAVANTAGE_API_KEY: ${{ secrets.ALPHAVANTAGE_API_KEY }}
+        run: |
+          python -m trader run --report report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save the account
+        run: |
+          git config user.name "T (trading bot)"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data state
+          if git diff --cached --quiet; then
+            echo "Nothing changed"
+          else
+            git commit -m "Daily scan $(date -u +%Y-%m-%d)"
+            git push
+          fi
+
+      - name: Post the report to the "T daily reports" issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create daily-report --color 1f6feb --description "T daily scan reports" 2>/dev/null || true
+          issue=$(gh issue list --label daily-report --state open --limit 1 --json number --jq '.[0].number')
+          if [ -z "$issue" ]; then
+            gh issue create --title "📈 T daily reports" --label daily-report \
+              --body "T posts the daily paper-trading scan here. Subscribe to this issue to get a notification after every run."
+            issue=$(gh issue list --label daily-report --state open --limit 1 --json number --jq '.[0].number')
+          fi
+          gh issue comment "$issue" --body-file report.md
+
+      - name: Telegram ping (optional)
+        if: env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHAT_ID != ''
+        run: |
+          headline=$(sed -n '3p' report.md | tr -d '*')
+          equity=$(sed -n '5p' report.md | tr -d '*`')
+          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=T daily scan: ${headline}
+          ${equity}
+          ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >/dev/null

@@ -78,6 +78,20 @@ Run it once a day after the US close; a cron job works. The account lives in `st
 
 The free Alpha Vantage key allows 25 requests a day, and the default watchlist uses 16.
 
+## Running by itself on GitHub
+
+`.github/workflows/daily-scan.yml` runs the bot every weekday at 21:22 UTC, after the New York close. Each run:
+1. fetches fresh prices,
+2. paper-trades any setups,
+3. commits `data/` and `state/`,
+4. posts the report as a comment on the **"📈 T daily reports"** issue. GitHub then notifies you by email and in the mobile app.
+
+One-time setup:
+1. Get a free Alpha Vantage key, then add it as a repository secret named `ALPHAVANTAGE_API_KEY` (**Settings → Secrets and variables → Actions → New repository secret**).
+2. GitHub only runs scheduled workflows from the **default branch**. Either make the branch holding this code the default (**Settings → General → Default branch**) or merge it into the default branch.
+3. Optional: go to **Actions → T daily scan → Run workflow** to test it straight away.
+4. Optional phone alerts: add `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` secrets to also get a Telegram message.
+
 ## Caveats
 
 - The cached history is short, about 100 daily bars for stocks. A backtest on it is a smoke test, not evidence of an edge.
