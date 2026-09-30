@@ -62,6 +62,18 @@ def print_status(p):
         print("\nFlat: no positions and no orders. Waiting for a setup.")
 
 
+def ranked_watch(p):
+    return sorted(p.watch.items(), key=lambda kv: kv[1]["atr_away"])
+
+
+def stale_symbols(universe):
+    """Symbols whose last bar is older than the newest bar in the same asset class."""
+    latest = {}
+    for ac, bars in universe.values():
+        latest[ac] = max(latest.get(ac, ""), bars[-1]["date"])
+    return sorted((sym, bars[-1]["date"]) for sym, (ac, bars) in universe.items() if bars[-1]["date"] < latest[ac])
+
+
 def write_report(path, p, universe):
     """Markdown summary of this run, used for the GitHub issue comment and job summary."""
     orders = [e for e in p.events if "ORDER" in e]
@@ -83,8 +95,16 @@ def write_report(path, p, universe):
                          f"{pos['stop']:.5g} | {tgt} | ${side * pos['units'] * (last - pos['entry']):,.2f} |")
         lines.append("")
     if p.watch:
-        lines += ["<details><summary>Key levels to watch</summary>", "", "```",
-                  *[f"{sym:<7} {note}" for sym, note in sorted(p.watch.items())], "```", "</details>", ""]
+        ranked = ranked_watch(p)
+        hot = [f"**{sym}** ({w['atr_away']:.1f} ATR)" for sym, w in ranked if w["atr_away"] <= 0.5]
+        if hot:
+            lines += ["🎯 **Closest to a setup:** " + " · ".join(hot), ""]
+        lines += ["<details><summary>Key levels to watch (closest first)</summary>", "", "```",
+                  *[f"{sym:<7} {w['note']}" for sym, w in ranked], "```", "</details>", ""]
+    stale = stale_symbols(universe)
+    if stale:
+        lines += ["⚠️ Stale data (older than its peers, levels may lag): " +
+                  ", ".join(f"{s} (last bar {d})" for s, d in stale), ""]
     lines.append("_Paper trading only. Not financial advice._")
     with open(path, "w") as f:
         f.write("\n".join(lines) + "\n")
@@ -103,9 +123,11 @@ def cmd_run(args):
         print(f"Scanned {p.scanned} new bar(s) across {len(universe)} symbols.")
         print("\n".join(p.events) or "No buy or sell setups today. Standing aside.")
         if p.watch:
-            print("\nKey levels (nearest support below / resistance above):")
-            for sym, note in sorted(p.watch.items()):
-                print(f"  {sym:<7} {note}")
+            print("\nKey levels, closest first (distance to the nearest level in ATRs):")
+            for sym, w in ranked_watch(p):
+                print(f"  {sym:<7} {w['note']}")
+        for sym, d in stale_symbols(universe):
+            print(f"  warning: {sym} data is stale (last bar {d})")
     p.save(STATE)
     p.append_trades(TRADES)
     print_status(p)

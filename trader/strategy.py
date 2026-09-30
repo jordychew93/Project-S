@@ -180,7 +180,11 @@ def trend_broken(bars):
 
 
 def watch_note(bars):
-    """Describe where price sits between its nearest support and resistance levels."""
+    """Where price sits between its nearest support and resistance.
+
+    Returns {"note": str, "atr_away": float} where atr_away is the distance to the closest level in
+    ATRs (0 means price is inside a level), so the report can rank what's nearest to a setup.
+    """
     if len(bars) < config.MIN_BARS:
         return None
     closes = [b["close"] for b in bars]
@@ -188,10 +192,22 @@ def watch_note(bars):
     if not a:
         return None
     c = closes[-1]
-    below, above = levels.nearest(levels.find_zones(bars, a), c)
-    parts = []
+    zones = levels.find_zones(bars, a)
+    inside = [z for z in zones if z.low <= c <= z.high]
+    below, above = levels.nearest(zones, c)
+    parts, dists = [], []
+    if inside:
+        z = inside[0]
+        parts.append(f"INSIDE level {z.low:.5g}-{z.high:.5g} ({z.touches}x): watch for a bounce or rejection candle")
+        dists.append(0.0)
     if below:
-        parts.append(f"support {below.low:.5g}-{below.high:.5g} ({(below.high - c) / c:+.1%}, {below.touches}x)")
+        d = (c - below.high) / a
+        dists.append(d)
+        parts.append(f"support {below.low:.5g}-{below.high:.5g} ({(below.high - c) / c:+.1%}, {d:.1f} ATR, {below.touches}x)")
     if above:
-        parts.append(f"resistance {above.low:.5g}-{above.high:.5g} ({(above.low - c) / c:+.1%}, {above.touches}x)")
-    return "  |  ".join(parts) or None
+        d = (above.low - c) / a
+        dists.append(d)
+        parts.append(f"resistance {above.low:.5g}-{above.high:.5g} ({(above.low - c) / c:+.1%}, {d:.1f} ATR, {above.touches}x)")
+    if not parts:
+        return None
+    return {"note": "  |  ".join(parts), "atr_away": min(dists)}

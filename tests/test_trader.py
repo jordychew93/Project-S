@@ -104,6 +104,19 @@ class SupportResistanceTests(unittest.TestCase):
         self.assertGreaterEqual(sig.target, 99.5)
 
 
+class WatchlistTests(unittest.TestCase):
+    def test_watch_note_ranks_by_atr_distance(self):
+        w = strategy.watch_note(range_bars(n=70)[:67])
+        self.assertIn("resistance", w["note"])
+        self.assertGreaterEqual(w["atr_away"], 0)
+
+    def test_stale_symbols(self):
+        from trader.__main__ import stale_symbols
+        u = {"A": ("fx", [{"date": "2026-09-29"}]), "B": ("fx", [{"date": "2026-09-25"}]),
+             "C": ("stock", [{"date": "2026-09-25"}])}
+        self.assertEqual(stale_symbols(u), [("B", "2026-09-25")])
+
+
 class DataTests(unittest.TestCase):
     def test_parse_sorts_oldest_first(self):
         text = "timestamp,open,high,low,close\r\n2026-01-02,1,2,0.5,1.5\r\n2026-01-01,1,2,0.5,1.2\r\n"
