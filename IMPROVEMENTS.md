@@ -1,6 +1,6 @@
 # Project T: improvement log
 
-Every daily scan ships **one small, tested improvement** and says what changed in the report.
+Ideas to build **only when the user asks**. The daily scan never changes the code on its own.
 
 Rules for these improvements:
 - **Keep them small.** Each one should be reviewable in a minute and never mix two ideas.
