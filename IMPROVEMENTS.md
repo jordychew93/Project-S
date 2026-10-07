@@ -20,5 +20,9 @@ Rules for these improvements:
 - [ ] Walk-forward backtest report, as the cached history grows
 - [ ] Carry the previous day's levels into the report, to show which levels broke overnight
 
+## Inbox: ideas to review
+
+- 2026-10-07 [@deanwperkins on X](https://x.com/deanwperkins/status/2100194304035549602): saved by Jordy to watch and pull ideas from. I couldn't open it because x.com is blocked from my environment. Waiting for Jordy to paste the text or describe the video. Jordy also mentioned "obsidian".
+
 ## Changelog
 - **2026-09-30:** The watchlist is ranked by distance to the nearest level, measured in ATR. The report opens with a 🎯 "Closest to a setup" line, flags when price is *inside* a level, and warns when a symbol's data is stale.
