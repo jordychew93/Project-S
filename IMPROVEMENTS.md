@@ -22,7 +22,10 @@ Rules for these improvements:
 
 ## Inbox: ideas to review
 
-- 2026-10-07 [@deanwperkins on X](https://x.com/deanwperkins/status/2100194304035549602): saved by Jordy to watch and pull ideas from. I couldn't open it because x.com is blocked from my environment. Waiting for Jordy to paste the text or describe the video. Jordy also mentioned "obsidian".
+- 2026-10-07 [@deanwperkins on X](https://x.com/deanwperkins/status/2100194304035549602): a post about a 23-minute tutorial on building a Claude trading bot, inspired by a Chinese trader. In the final minute the creator admits the demo isn't finished and that they trade better by hand. Taken from a search snippet; I haven't seen the video. Jordy linked it to "obsidian". Ideas for T, pending Jordy's OK:
+  1. Scorecard: win rate, average R, expectancy and max drawdown for T's signals, compared with buying and holding SPY and with Jordy's own moomoo trades.
+  2. Trade journal: one Obsidian-style markdown note per signal (setup, levels, chart, outcome, lesson), tagged and linked, so it can be opened as a vault.
+  3. Rule: no real-money size increase until about 30 closed paper trades show positive expectancy.
 
 ## Changelog
 - **2026-09-30:** The watchlist is ranked by distance to the nearest level, measured in ATR. The report opens with a 🎯 "Closest to a setup" line, flags when price is *inside* a level, and warns when a symbol's data is stale.
