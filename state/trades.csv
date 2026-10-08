@@ -1,0 +1,2 @@
+symbol,asset_class,setup,side,entry_date,exit_date,entry,exit,units,pnl,r_multiple,exit_reason
+NVDA,stock,support_bounce,long,2026-10-06,2026-10-08,242.22105,231.68016,82.0,-864.35,-1.01,stop hit
