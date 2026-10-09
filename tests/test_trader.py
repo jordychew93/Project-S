@@ -173,5 +173,231 @@ class ShortPositionTests(unittest.TestCase):
         self.assertAlmostEqual(p.cash, 100_000.0 + trade["pnl"])
 
 
+# ----- moomoo paper bot (offline: every moomoo call is faked) --------------------------------------------
+import os
+import tempfile
+from zoneinfo import ZoneInfo
+
+from trader import broker_moomoo as bm
+from trader import moomoo_bot
+
+REAL_ACC_ID = 286260079670825227
+
+
+class FakeTradeCtx:
+    def __init__(self):
+        self.calls = []
+
+    def place_order(self, **kw):
+        self.calls.append(("place_order", kw))
+        return 0, [{"order_id": "FAKE1"}]
+
+    def modify_order(self, *a, **kw):
+        self.calls.append(("modify_order", a, kw))
+        return 0, None
+
+    def position_list_query(self, **kw):
+        return 0, [{"code": "US.AAPL", "qty": 10.0, "position_side": "LONG"},
+                   {"code": "US.XOM", "qty": 5.0, "position_side": "SHORT"},
+                   {"code": "US.MSFT", "qty": 0.0, "position_side": "LONG"}]
+
+
+class PaperGuardTests(unittest.TestCase):
+    def test_market_order_goes_to_paper_account(self):
+        ctx = FakeTradeCtx()
+        self.assertEqual(bm.place_paper_order(ctx, "AAPL", 10, "BUY"), "FAKE1")
+        kw = ctx.calls[0][1]
+        self.assertEqual((kw["trd_env"], kw["acc_id"], kw["order_type"], kw["code"], kw["qty"]),
+                         ("SIMULATE", bm.PAPER_ACC_ID, "MARKET", "US.AAPL", 10))
+
+    def test_limit_day_order(self):
+        ctx = FakeTradeCtx()
+        bm.place_paper_order(ctx, "AAPL", 3, "SELL", price=250.5)
+        kw = ctx.calls[0][1]
+        self.assertEqual((kw["order_type"], kw["price"], kw["time_in_force"]), ("NORMAL", 250.5, "DAY"))
+
+    def test_guard_rejects_real(self):
+        ctx = FakeTradeCtx()
+        with self.assertRaises(bm.NotPaperError):
+            bm.place_paper_order(ctx, "AAPL", 10, "BUY", trd_env="REAL")
+        with self.assertRaises(bm.NotPaperError):
+            bm.place_paper_order(ctx, "AAPL", 10, "BUY", acc_id=REAL_ACC_ID)
+        with self.assertRaises(bm.NotPaperError):
+            bm.cancel_paper_order(ctx, "FAKE1", trd_env="REAL")
+        self.assertEqual(ctx.calls, [])
+
+    def test_bad_quantity_or_side_rejected(self):
+        with self.assertRaises(ValueError):
+            bm.place_paper_order(FakeTradeCtx(), "AAPL", 0, "BUY")
+        with self.assertRaises(ValueError):
+            bm.place_paper_order(FakeTradeCtx(), "AAPL", 1, "YOLO")
+
+    def test_place_order_has_a_single_call_site(self):
+        root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "trader")
+        sites = []
+        for name in os.listdir(root):
+            if name.endswith(".py"):
+                with open(os.path.join(root, name)) as f:
+                    src = f.read()
+                sites += [name] * src.count(".place_order(")
+                self.assertNotIn("unlock_trade", src)
+                self.assertNotIn(str(REAL_ACC_ID), src)
+        self.assertEqual(sites, ["broker_moomoo.py"])
+
+    def test_positions_are_signed(self):
+        self.assertEqual(bm.paper_positions(FakeTradeCtx()), {"AAPL": 10.0, "XOM": -5.0})
+
+
+class FakeFrame(list):
+    def to_dict(self, _):
+        return list(self)
+
+
+class FakeQuoteCtx:
+    def __init__(self, pages):
+        self.pages = pages
+
+    def request_history_kline(self, code, page_req_key=None, **kw):
+        i = page_req_key or 0
+        nxt = i + 1 if i + 1 < len(self.pages) else None
+        return 0, FakeFrame(self.pages[i]), nxt
+
+
+class MoomooBarTests(unittest.TestCase):
+    rows = [{"time_key": "2026-10-08 00:00:00", "open": 336.815, "high": 341.57, "low": 335.9, "close": 340.42,
+             "volume": 35332449.0},
+            {"time_key": "2026-10-07 00:00:00", "open": 336.96, "high": 338.67, "low": 332.78, "close": 336.67,
+             "volume": 34147860.0}]
+
+    def test_kline_to_bars(self):
+        bars = bm.kline_to_bars(self.rows)
+        self.assertEqual([b["date"] for b in bars], ["2026-10-07", "2026-10-08"])
+        self.assertEqual(set(bars[0]), {"date", "open", "high", "low", "close", "volume"})
+        self.assertAlmostEqual(bars[1]["close"], 340.42)
+
+    def test_csv_round_trip(self):
+        bars = bm.kline_to_bars(self.rows)
+        self.assertEqual(data.parse_csv(bm.bars_to_csv(bars)), [dict(b, open=round(b["open"], 4)) for b in bars])
+
+    def test_fetch_pages_and_caches(self):
+        import datetime as dt
+        saved = bm.CACHE_DIR
+        with tempfile.TemporaryDirectory() as tmp:
+            bm.CACHE_DIR = tmp
+            try:
+                bars = bm.fetch_bars(FakeQuoteCtx([self.rows[:1], self.rows[1:]]), "AAPL", today=dt.date(2026, 10, 9))
+                self.assertEqual(len(bars), 2)
+                self.assertEqual(bm.load_cached_bars("AAPL"), bars)
+            finally:
+                bm.CACHE_DIR = saved
+
+
+class FakeBroker:
+    def __init__(self, open_price, when):
+        self.open_price, self.when, self.held, self.placed = open_price, when, {}, []
+
+    def snapshots(self, symbols):
+        return {s: {"open": self.open_price, "last": self.open_price, "time": self.when} for s in symbols}
+
+    def positions(self):
+        return {s: q for s, q in self.held.items() if q}
+
+    def place(self, sym, qty, side, price=None):
+        self.placed.append((sym, qty, side))
+        self.held[sym] = self.held.get(sym, 0) + (qty if side in ("BUY", "BUY_BACK") else -qty)
+        return f"OID{len(self.placed)}"
+
+    def order(self, oid):
+        return {"order_status": "FILLED_ALL", "dealt_avg_price": self.open_price}
+
+
+def bounce_universe():
+    bars = range_bars(n=70)[:61]
+    bars.append({"date": "2026-12-01", "open": 100.2, "high": 101.8, "low": 99.6, "close": 101.6, "volume": 1000})
+    return {"X": ("stock", bars)}
+
+
+class MoomooFlowTests(unittest.TestCase):
+    ET = ZoneInfo("America/New_York")
+
+    def setUp(self):
+        self._saved = config.STRATEGY, config.ALLOW_SHORTS
+        config.STRATEGY, config.ALLOW_SHORTS = "sr", True
+
+    def tearDown(self):
+        config.STRATEGY, config.ALLOW_SHORTS = self._saved
+
+    def test_scan_execute_scan_exit(self):
+        p, state, u = Portfolio(), {"exits": []}, bounce_universe()
+        exits, cancelled = moomoo_bot.scan(p, state, u)
+        self.assertEqual((exits, cancelled), ([], []))
+        self.assertIn("X", p.pending)
+        self.assertTrue(moomoo_bot.scan_summary(p, exits, cancelled, [], u)[1].startswith("📋"))
+
+        # Execute 10 minutes after the open: one market BUY sized like the engine would at that open.
+        broker = FakeBroker(101.7, "2026-12-02 09:40:00")
+        expected_units, _ = moomoo_bot.plan_entry(p, "X", 101.7, "2026-12-02")
+        lines, rows = moomoo_bot.execute(p, state, broker, datetime(2026, 12, 2, 9, 40, tzinfo=self.ET))
+        self.assertEqual(broker.placed, [("X", expected_units, "BUY")])
+        self.assertGreater(expected_units, 0)
+        self.assertEqual(p.pending["X"]["broker_order_id"], "OID1")
+        self.assertIn("agree", lines[-1])
+        self.assertEqual(rows[0]["qty"], expected_units)
+
+        # Running execute again sends nothing more.
+        again, _ = moomoo_bot.execute(p, state, broker, datetime(2026, 12, 2, 9, 45, tzinfo=self.ET))
+        self.assertEqual((len(broker.placed), again), (1, []))
+
+        # Next scan books the fill with exactly the broker quantity.
+        bars = u["X"][1]
+        bars.append({"date": "2026-12-02", "open": 101.7, "high": 102.5, "low": 101.0, "close": 102.0, "volume": 1000})
+        moomoo_bot.scan(p, state, u)
+        self.assertEqual(p.positions["X"]["units"], expected_units)
+
+        # The stop is hit: the scan queues an exit and execute sells exactly that quantity.
+        bars.append({"date": "2026-12-03", "open": 101.0, "high": 101.2, "low": 95.0, "close": 96.0, "volume": 1000})
+        exits, _ = moomoo_bot.scan(p, state, u)
+        self.assertEqual([(e["symbol"], e["units"], e["reason"]) for e in exits], [("X", expected_units, "stop hit")])
+        broker.when = "2026-12-04 09:40:00"
+        lines, _ = moomoo_bot.execute(p, state, broker, datetime(2026, 12, 4, 9, 40, tzinfo=self.ET))
+        self.assertEqual(broker.placed[-1], ("X", expected_units, "SELL"))
+        self.assertEqual((state["exits"], broker.positions()), ([], {}))
+        self.assertIn("agree", lines[-1])
+
+    def test_market_closed_sends_nothing(self):
+        p, state, u = Portfolio(), {"exits": []}, bounce_universe()
+        moomoo_bot.scan(p, state, u)
+        broker = FakeBroker(101.7, "2026-12-02 06:00:00")
+        lines, _ = moomoo_bot.execute(p, state, broker, datetime(2026, 12, 2, 6, 0, tzinfo=self.ET))
+        self.assertEqual(broker.placed, [])
+        self.assertIn("closed", lines[0])
+
+    def test_unsent_order_is_cancelled_at_next_scan(self):
+        p, state, u = Portfolio(), {"exits": []}, bounce_universe()
+        moomoo_bot.scan(p, state, u)
+        u["X"][1].append({"date": "2026-12-02", "open": 101.7, "high": 102.5, "low": 101.0, "close": 102.0,
+                          "volume": 1000})
+        _, cancelled = moomoo_bot.scan(p, state, u)
+        self.assertEqual(cancelled, ["X"])
+        self.assertNotIn("X", p.positions)
+
+    def test_rescan_same_day_keeps_pending(self):
+        p, state, u = Portfolio(), {"exits": []}, bounce_universe()
+        moomoo_bot.scan(p, state, u)
+        _, cancelled = moomoo_bot.scan(p, state, u)
+        self.assertEqual(cancelled, [])
+        self.assertIn("X", p.pending)
+
+    def test_exit_never_opens_a_new_position(self):
+        p, state = Portfolio(), {"exits": [{"symbol": "X", "side": 1, "units": 10, "reason": "stop hit", "r": -1}]}
+        broker = FakeBroker(100.0, "2026-12-02 09:40:00")
+        lines, _ = moomoo_bot.execute(p, state, broker, datetime(2026, 12, 2, 9, 40, tzinfo=self.ET))
+        self.assertEqual(broker.placed, [])
+        self.assertIn("nothing held", " ".join(lines))
+
+    def test_reconcile_reports_mismatch(self):
+        self.assertEqual(moomoo_bot.reconcile({"A": 5, "B": -3}, {"A": 5, "C": 2}), [("B", -3, 0), ("C", 0, 2)])
+
+
 if __name__ == "__main__":
     unittest.main()

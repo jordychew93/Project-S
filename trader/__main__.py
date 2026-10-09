@@ -5,6 +5,11 @@
     python -m trader status         show open positions, pending orders and equity
     python -m trader backtest       replay the cached history from a fresh $100k account
     python -m trader --strategy trend run    pick a strategy: sr (default), trend or both
+
+moomoo paper bot (needs moomoo OpenD on 127.0.0.1:11111 and the moomoo-api package; see trader/moomoo_bot.py):
+    python -m trader moomoo-scan              after the US close: scan, queue next-open orders
+    python -m trader moomoo-execute [--dry-run]   after the US open: send them to the moomoo PAPER account
+    python -m trader moomoo-status            short summary of the bot book and the paper account
 """
 
 import argparse
@@ -159,9 +164,17 @@ def main():
     run.add_argument("--report", metavar="FILE", help="also write a markdown summary to FILE")
     sub.add_parser("status")
     sub.add_parser("backtest")
+    sub.add_parser("moomoo-scan", help="moomoo paper bot: scan after the US close")
+    ex = sub.add_parser("moomoo-execute", help="moomoo paper bot: send queued orders after the US open")
+    ex.add_argument("--dry-run", action="store_true", help="show what would be sent, send nothing")
+    sub.add_parser("moomoo-status", help="moomoo paper bot: short summary")
     args = parser.parse_args()
     if args.strategy:
         config.STRATEGY = args.strategy
+    if args.cmd.startswith("moomoo-"):
+        from . import moomoo_bot
+        return {"moomoo-scan": moomoo_bot.cmd_scan, "moomoo-execute": moomoo_bot.cmd_execute,
+                "moomoo-status": moomoo_bot.cmd_status}[args.cmd](args)
     {"run": cmd_run, "status": cmd_status, "backtest": cmd_backtest}[args.cmd](args)
 
 

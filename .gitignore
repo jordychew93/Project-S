@@ -1,2 +1,6 @@
 __pycache__/
 *.pyc
+
+# moomoo paper bot: local-only state, caches and logs
+data/moomoo/
+state/moomoo_*

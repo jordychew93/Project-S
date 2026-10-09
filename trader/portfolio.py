@@ -136,6 +136,9 @@ class Portfolio:
                     self.cash / entry)
         if asset_class == "stock":
             units = float(int(units))
+        if order.get("broker_units") is not None:
+            # moomoo paper bot: mirror the quantity actually sent to the broker (sized the same way at the open).
+            units = float(order["broker_units"])
         if units <= 0:
             self._log(bar["date"], f"SKIP       {sym:<7} not enough cash")
             return
