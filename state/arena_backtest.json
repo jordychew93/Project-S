@@ -1,0 +1,291 @@
+{
+ "ablation": [
+  [
+   "all flags off (= Project T)",
+   {
+    "avg_r": 0.09108490566037736,
+    "cagr": -0.015756665409497717,
+    "days": 1196,
+    "end": "2026-10-08",
+    "equity": 92717.15,
+    "expectancy": -32.845754716981126,
+    "max_drawdown": 0.11569202842471127,
+    "profit_factor": 0.9011905016987605,
+    "sharpe": -0.17497675319157363,
+    "start": "2022-01-03",
+    "total_return": -0.07282850000000007,
+    "trades": 212,
+    "vs_spy": null,
+    "win_rate": 0.28773584905660377
+   }
+  ],
+  [
+   "200-day trend gate",
+   {
+    "avg_r": 0.06790575916230365,
+    "cagr": -0.021800883404562543,
+    "days": 1196,
+    "end": "2026-10-08",
+    "equity": 90037.42,
+    "expectancy": -50.55649214659685,
+    "max_drawdown": 0.14287535595848966,
+    "profit_factor": 0.849157024602319,
+    "sharpe": -0.2735868735818811,
+    "start": "2022-01-03",
+    "total_return": -0.09962579999999999,
+    "trades": 191,
+    "vs_spy": null,
+    "win_rate": 0.29842931937172773
+   }
+  ],
+  [
+   "scale in (3 tranches)",
+   {
+    "avg_r": 0.2605069124423963,
+    "cagr": -0.008380481632276893,
+    "days": 1196,
+    "end": "2026-10-08",
+    "equity": 96072.35,
+    "expectancy": -17.4257603686636,
+    "max_drawdown": 0.07826738857205551,
+    "profit_factor": 0.8835586425465046,
+    "sharpe": -0.20009043061531454,
+    "start": "2022-01-03",
+    "total_return": -0.039276499999999936,
+    "trades": 217,
+    "vs_spy": null,
+    "win_rate": 0.3271889400921659
+   }
+  ],
+  [
+   "10% cap + 15% cash",
+   {
+    "avg_r": 0.09108490566037736,
+    "cagr": -0.010871005029627123,
+    "days": 1196,
+    "end": "2026-10-08",
+    "equity": 94928.94,
+    "expectancy": -23.166273584905657,
+    "max_drawdown": 0.06726881705216325,
+    "profit_factor": 0.8753770407525007,
+    "sharpe": -0.23070586862723055,
+    "start": "2022-01-03",
+    "total_return": -0.05071059999999994,
+    "trades": 212,
+    "vs_spy": null,
+    "win_rate": 0.28773584905660377
+   }
+  ],
+  [
+   "half off at +2R/+25%",
+   {
+    "avg_r": 0.08542452830188679,
+    "cagr": -0.01662800552021315,
+    "days": 1196,
+    "end": "2026-10-08",
+    "equity": 92327.0,
+    "expectancy": -34.68594339622641,
+    "max_drawdown": 0.1244215328239322,
+    "profit_factor": 0.8929386494733794,
+    "sharpe": -0.20507793775585959,
+    "start": "2022-01-03",
+    "total_return": -0.07672999999999996,
+    "trades": 212,
+    "vs_spy": null,
+    "win_rate": 0.3160377358490566
+   }
+  ],
+  [
+   "earnings blackout",
+   {
+    "avg_r": 0.09108490566037736,
+    "cagr": -0.015756665409497717,
+    "days": 1196,
+    "end": "2026-10-08",
+    "equity": 92717.15,
+    "expectancy": -32.845754716981126,
+    "max_drawdown": 0.11569202842471127,
+    "profit_factor": 0.9011905016987605,
+    "sharpe": -0.17497675319157363,
+    "start": "2022-01-03",
+    "total_return": -0.07282850000000007,
+    "trades": 212,
+    "vs_spy": null,
+    "win_rate": 0.28773584905660377
+   }
+  ],
+  [
+   "risk-off halves risk",
+   {
+    "avg_r": 0.09108490566037736,
+    "cagr": -0.005286143819402067,
+    "days": 1196,
+    "end": "2026-10-08",
+    "equity": 97508.1,
+    "expectancy": -10.18433962264151,
+    "max_drawdown": 0.11402235064029387,
+    "profit_factor": 0.9669113460759521,
+    "sharpe": -0.05075447205940877,
+    "start": "2022-01-03",
+    "total_return": -0.024918999999999913,
+    "trades": 212,
+    "vs_spy": null,
+    "win_rate": 0.28773584905660377
+   }
+  ],
+  [
+   "all flags on",
+   {
+    "avg_r": 0.22066326530612246,
+    "cagr": -0.003574966672655666,
+    "days": 1196,
+    "end": "2026-10-08",
+    "equity": 98309.32,
+    "expectancy": -8.252704081632654,
+    "max_drawdown": 0.03248309617394762,
+    "profit_factor": 0.8972961612652116,
+    "sharpe": -0.18240953940811447,
+    "start": "2022-01-03",
+    "total_return": -0.01690679999999989,
+    "trades": 196,
+    "vs_spy": null,
+    "win_rate": 0.3520408163265306
+   }
+  ]
+ ],
+ "cards": {
+  "baseline": {
+   "avg_r": 0.09108490566037736,
+   "cagr": -0.015756665409497717,
+   "days": 1196,
+   "end": "2026-10-08",
+   "equity": 92717.15,
+   "expectancy": -32.845754716981126,
+   "max_drawdown": 0.11569202842471127,
+   "profit_factor": 0.9011905016987605,
+   "sharpe": -0.17497675319157363,
+   "start": "2022-01-03",
+   "total_return": -0.07282850000000007,
+   "trades": 212,
+   "vs_spy": -0.7886813,
+   "win_rate": 0.28773584905660377
+  },
+  "breakout": {
+   "avg_r": 0.8637383177570094,
+   "cagr": 0.12278631719512845,
+   "days": 1196,
+   "end": "2026-10-08",
+   "equity": 173568.42,
+   "expectancy": 666.3446728971963,
+   "max_drawdown": 0.13740398027211176,
+   "profit_factor": 2.065354312825215,
+   "sharpe": 0.9375312453804442,
+   "start": "2022-01-03",
+   "total_return": 0.7356842000000001,
+   "trades": 107,
+   "vs_spy": 0.019831400000000166,
+   "win_rate": 0.42990654205607476
+  },
+  "meanrev": {
+   "avg_r": null,
+   "cagr": 0.09167546666266113,
+   "days": 1196,
+   "end": "2026-10-08",
+   "equity": 151833.66,
+   "expectancy": 153.41708333333332,
+   "max_drawdown": 0.1064798074985307,
+   "profit_factor": 1.99354758628612,
+   "sharpe": 1.1892325054166597,
+   "start": "2022-01-03",
+   "total_return": 0.5183366,
+   "trades": 336,
+   "vs_spy": -0.19751619999999992,
+   "win_rate": 0.7053571428571429
+  },
+  "playbook": {
+   "avg_r": 0.22066326530612246,
+   "cagr": -0.003574966672655666,
+   "days": 1196,
+   "end": "2026-10-08",
+   "equity": 98309.32,
+   "expectancy": -8.252704081632654,
+   "max_drawdown": 0.03248309617394762,
+   "profit_factor": 0.8972961612652116,
+   "sharpe": -0.18240953940811447,
+   "start": "2022-01-03",
+   "total_return": -0.01690679999999989,
+   "trades": 196,
+   "vs_spy": -0.7327595999999998,
+   "win_rate": 0.3520408163265306
+  },
+  "rotation": {
+   "avg_r": null,
+   "cagr": 0.15404159506901904,
+   "days": 1196,
+   "end": "2026-10-08",
+   "equity": 197808.07,
+   "expectancy": 5816.932352941177,
+   "max_drawdown": 0.19102352943827217,
+   "profit_factor": 4.116411482409178,
+   "sharpe": 0.8322931951613516,
+   "start": "2022-01-03",
+   "total_return": 0.9780807,
+   "trades": 17,
+   "vs_spy": 0.26222790000000007,
+   "win_rate": 0.5882352941176471
+  },
+  "spy": {
+   "avg_r": null,
+   "cagr": 0.1200796219027056,
+   "days": 1196,
+   "end": "2026-10-08",
+   "equity": 171585.28,
+   "expectancy": null,
+   "max_drawdown": 0.24636420000000003,
+   "profit_factor": null,
+   "sharpe": 0.7472277480600136,
+   "start": "2022-01-03",
+   "total_return": 0.7158528,
+   "trades": 0,
+   "vs_spy": 0.0,
+   "win_rate": null
+  }
+ },
+ "end": "2026-10-08",
+ "generated": "2026-10-09T07:23:37+00:00",
+ "start": "2022-01-03",
+ "verdicts": {
+  "baseline": {
+   "reasons": [
+    "trailed SPY"
+   ],
+   "survived": false
+  },
+  "breakout": {
+   "reasons": [],
+   "survived": true
+  },
+  "meanrev": {
+   "reasons": [
+    "trailed SPY"
+   ],
+   "survived": false
+  },
+  "playbook": {
+   "reasons": [
+    "trailed SPY"
+   ],
+   "survived": false
+  },
+  "rotation": {
+   "reasons": [],
+   "survived": true
+  },
+  "spy": {
+   "reasons": [
+    "benchmark"
+   ],
+   "survived": true
+  }
+ }
+}

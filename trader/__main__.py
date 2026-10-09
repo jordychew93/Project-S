@@ -10,6 +10,11 @@ moomoo paper bot (needs moomoo OpenD on 127.0.0.1:11111 and the moomoo-api packa
     python -m trader moomoo-scan              after the US close: scan, queue next-open orders
     python -m trader moomoo-execute [--dry-run]   after the US open: send them to the moomoo PAPER account
     python -m trader moomoo-status            short summary of the bot book and the paper account
+
+strategy arena (virtual $100k books only, never places orders; see trader/arena/):
+    python -m trader arena-backtest [--refresh] [--ablation]   stage 1 backtest, writes ARENA_RESULTS.md
+    python -m trader arena-update [--offline]                  stage 2: advance the forward virtual books
+    python -m trader arena-leaderboard                         weekly leaderboard message
 """
 
 import argparse
@@ -168,9 +173,20 @@ def main():
     ex = sub.add_parser("moomoo-execute", help="moomoo paper bot: send queued orders after the US open")
     ex.add_argument("--dry-run", action="store_true", help="show what would be sent, send nothing")
     sub.add_parser("moomoo-status", help="moomoo paper bot: short summary")
+    bt = sub.add_parser("arena-backtest", help="strategy arena stage 1: backtest all strategies, write ARENA_RESULTS.md")
+    bt.add_argument("--refresh", action="store_true", help="re-download history from moomoo first")
+    bt.add_argument("--start", default="2022-01-03", help="first trading day of the backtest")
+    bt.add_argument("--ablation", action="store_true", help="also test each playbook rule on its own (slower)")
+    up = sub.add_parser("arena-update", help="strategy arena stage 2: advance the virtual books to the latest close")
+    up.add_argument("--offline", action="store_true", help="use cached bars instead of fetching from moomoo")
+    sub.add_parser("arena-leaderboard", help="strategy arena: weekly leaderboard message")
     args = parser.parse_args()
     if args.strategy:
         config.STRATEGY = args.strategy
+    if args.cmd.startswith("arena-"):
+        from .arena import runner
+        return {"arena-backtest": runner.cmd_backtest, "arena-update": runner.cmd_update,
+                "arena-leaderboard": runner.cmd_leaderboard}[args.cmd](args)
     if args.cmd.startswith("moomoo-"):
         from . import moomoo_bot
         return {"moomoo-scan": moomoo_bot.cmd_scan, "moomoo-execute": moomoo_bot.cmd_execute,

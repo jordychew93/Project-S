@@ -109,6 +109,30 @@ python -m trader moomoo-status              # bot book, paper account, and wheth
 - A stock order that never reached moomoo (execute didn't run) is cancelled at the next scan, so the book never holds what moomoo doesn't. Execute ends by comparing the two and reports any mismatch.
 - Cron wrappers: `~/.hermes/scripts/moomoo/paper_scan.sh` and `paper_execute.sh` (stdout is the Telegram summary; moomoo logs go to `paper_bot.log`). If OpenD isn't running they print one warning line.
 
+## Strategy arena (virtual books)
+
+Several strategies run side by side, each with its own **virtual $100,000 book** fed the same daily moomoo prices. The arena never places orders (a test checks it can't even import the trading adapter); only the moomoo paper bot above trades the paper account.
+
+| Book | Rules |
+|---|---|
+| Project T (as is) | this bot, stocks only, same ~400-day data window as the moomoo bot |
+| Project T + playbook | plus 200-day trend gate, 3 tranches, 10% cap per name, 15% cash, half off at +2R/+25%, earnings blackout (needs `data/arena/earnings.json`), half risk while SPY is below its 200-day average |
+| Breakout | buy a close above the 55-day high, exit below the 20-day low, 2 ATR stop, 1% risk |
+| Dip buying | RSI(2) under 10 above the 200-day average; exit RSI(2) over 70 or after 10 days |
+| Monthly rotation | hold the strongest of SPY/QQQ/GLD/TLT by 3- and 6-month return, BIL if all are negative |
+| SPY buy & hold | the benchmark |
+
+```bash
+python -m trader arena-backtest [--refresh] [--ablation]   # stage 1: 2022 onwards, writes ARENA_RESULTS.md
+python -m trader arena-update [--offline]                  # stage 2: advance the forward books (idempotent)
+python -m trader arena-leaderboard                         # weekly Telegram-style leaderboard
+```
+
+- **Stage 1** drops a strategy that trails buy-and-hold SPY or falls more than 20% from a peak.
+- **Stage 2** forward books live in `state/arena.json` (git-ignored); stage 1 scorecards in `state/arena_backtest.json`.
+- **Promotion** is only reported: 30+ closed trades, and beats Project T on expectancy ($/trade) and max drawdown in both stages.
+- Cron wrappers: `~/.hermes/scripts/moomoo/arena_update.sh` (silent unless it fails) and `arena_leaderboard.sh`, run from the `~/Documents/Project-T-arena` worktree; logs go to `arena.log`.
+
 ## Caveats
 
 - The cached history is short, about 100 daily bars for stocks. A backtest on it is a smoke test, not evidence of an edge.

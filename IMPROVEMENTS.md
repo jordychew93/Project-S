@@ -28,5 +28,6 @@ Rules for these improvements:
   3. Rule: no real-money size increase until about 30 closed paper trades show positive expectancy.
 
 ## Changelog
+- **2026-10-09:** Added the strategy arena (`arena-backtest`, `arena-update`, `arena-leaderboard`): six virtual $100k books (Project T, Project T + playbook flags, breakout, RSI-2 dip buying, monthly rotation, SPY), a 2022-2026 backtest in `ARENA_RESULTS.md` with a one-flag-at-a-time table, and forward books in `state/arena.json`. Nothing in the live bots changed; the arena cannot place orders.
 - **2026-10-09:** Added the moomoo paper bot (`moomoo-scan`, `moomoo-execute`, `moomoo-status`): same strategy and $100k sizing, US-stock trades mirrored as orders in the moomoo paper account through one guarded `place_paper_order` (SIMULATE only), crypto/FX still simulated, separate state files, reconciliation after each execute. The cloud bot is unchanged; the only engine change is that a pending order carrying `broker_units` fills at that quantity.
 - **2026-09-30:** The watchlist is ranked by distance to the nearest level, measured in ATR. The report opens with a 🎯 "Closest to a setup" line, flags when price is *inside* a level, and warns when a symbol's data is stale.

@@ -4,3 +4,8 @@ __pycache__/
 # moomoo paper bot: local-only state, caches and logs
 data/moomoo/
 state/moomoo_*
+
+# strategy arena: price cache and forward virtual books (local only)
+data/arena/
+state/arena.json
+state/arena.json.tmp
