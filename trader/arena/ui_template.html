@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strategy arena · paper money</title>
+<style>
+:root{
+  --paper:#f5efe4; --paper-2:#efe6d6; --ink:#2b2420; --ink-2:#5d524a; --muted:#8a7d72; --line:#e2d6c3;
+  --felt-1:#f4dcc4; --felt-2:#e9c6a6; --good:#3f9e5c; --warn:#d98a1c; --bad:#d4452f;
+  --radius:28px; --shadow:0 1px 0 rgba(255,255,255,.7) inset, 0 18px 40px -22px rgba(80,50,20,.45);
+  --font:"SF Pro Rounded", ui-rounded, "Nunito", "Avenir Next", system-ui, sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased}
+body{background:
+  radial-gradient(1200px 500px at 10% -10%, #fff8ec 0, transparent 60%),
+  radial-gradient(900px 600px at 100% 0, #f3e3d0 0, transparent 55%), var(--paper)}
+h1,h2,h3,p,li{text-wrap:pretty}
+h1,h2{text-wrap:balance}
+.wrap{max-width:1320px;margin:0 auto;padding:32px 28px 56px}
+header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:22px}
+h1{font-size:44px;line-height:1;margin:0;font-weight:800;letter-spacing:-.02em}
+.sub{margin:10px 0 0;color:var(--ink-2);font-size:17px;max-width:62ch}
+.paper-tag{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:999px;background:#fff7e8;
+  border:1.5px dashed #c9b28f;color:#6b5434;font-weight:700;font-size:14px;white-space:nowrap}
+.paper-tag svg{flex:none}
+section.panel{background:linear-gradient(#fffaf2,#fbf3e6);border-radius:var(--radius);box-shadow:var(--shadow);
+  padding:22px 24px 24px;margin-bottom:26px;border:1px solid #ecdfcb}
+.panel-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+h2{font-size:26px;margin:0;font-weight:800;letter-spacing:-.01em}
+.panel-head p{margin:4px 0 0;color:var(--ink-2);font-size:15px}
+.kicker{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+
+/* controls */
+.controls{display:grid;grid-template-columns:auto auto 1fr auto;align-items:center;gap:18px;margin:6px 0 14px}
+.play{width:62px;height:62px;border-radius:50%;border:0;cursor:pointer;color:#fff;display:grid;place-items:center;
+  background:radial-gradient(circle at 35% 30%,#5a4d45,#2b2420 70%);
+  box-shadow:0 2px 0 rgba(255,255,255,.25) inset,0 -4px 8px rgba(0,0,0,.35) inset,0 10px 18px -8px rgba(40,25,10,.6);
+  transition:transform .15s}
+.play:hover{transform:translateY(-1px) scale(1.03)}.play:active{transform:scale(.96)}
+.play:focus-visible,.chip:focus-visible,.seg button:focus-visible,input[type=range]:focus-visible{outline:3px solid #e39b4a;outline-offset:3px}
+.date-big{min-width:178px}
+.date-big b{display:block;font-size:30px;line-height:1;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.date-big span{font-size:13px;color:var(--muted);font-weight:600}
+.scrub{position:relative}
+.scrub input{width:100%;appearance:none;-webkit-appearance:none;height:30px;background:transparent;margin:0}
+.scrub input::-webkit-slider-runnable-track{height:12px;border-radius:99px;
+  background:linear-gradient(90deg,#d9a46f var(--p,0%),#eadcc8 var(--p,0%));box-shadow:inset 0 2px 3px rgba(80,50,20,.25)}
+.scrub input::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;margin-top:-8px;
+  background:radial-gradient(circle at 35% 30%,#fff,#f0dcc2 70%);box-shadow:0 4px 8px -2px rgba(80,50,20,.5),inset 0 -3px 5px rgba(160,110,60,.35);cursor:grab}
+.scrub input::-moz-range-track{height:12px;border-radius:99px;background:#eadcc8}
+.scrub input::-moz-range-progress{height:12px;border-radius:99px;background:#d9a46f}
+.scrub input::-moz-range-thumb{width:26px;height:26px;border-radius:50%;border:0;background:#fff;box-shadow:0 4px 8px -2px rgba(80,50,20,.5)}
+.ticks{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-weight:700;padding:0 4px;position:relative;height:16px}
+.ticks span{position:absolute;transform:translateX(-50%)}
+.right-ctl{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.seg{display:inline-flex;background:#efe3d1;border-radius:99px;padding:4px;box-shadow:inset 0 2px 4px rgba(80,50,20,.15)}
+.seg button{border:0;background:transparent;font:inherit;font-weight:700;font-size:13px;color:var(--ink-2);padding:8px 12px;border-radius:99px;cursor:pointer;min-height:36px}
+.seg button[aria-pressed=true]{background:#fff;color:var(--ink);box-shadow:0 3px 8px -3px rgba(80,50,20,.4)}
+.chip{border:1.5px solid #dcc9ad;background:#fffaf1;font:inherit;font-size:13px;font-weight:700;color:var(--ink-2);padding:8px 12px;border-radius:99px;cursor:pointer;min-height:36px}
+.chip:hover{background:#fff;border-color:#c9ab84}
+
+/* stage */
+.stage{position:relative;border-radius:24px;overflow:hidden;padding:18px 10px 8px;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(255,255,255,.55), transparent 60%),
+    linear-gradient(180deg,#f6e3cf 0%, #f0d2b4 58%, #e7bf9b 100%);
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.6), inset 0 -16px 30px -10px rgba(150,90,40,.25)}
+.stage::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.35;mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' seed='7'/><feColorMatrix values='0 0 0 0 .55  0 0 0 0 .38  0 0 0 0 .22  0 0 0 .55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+.lane{position:relative;height:410px}
+.card{position:absolute;top:0;width:calc(100% / 6);padding:0 6px;transition:left .7s cubic-bezier(.5,1.6,.4,1);text-align:center}
+.card .rank{position:absolute;top:2px;left:14px;z-index:2;font-weight:800;font-size:13px;color:#7a5536;
+  background:rgba(255,248,236,.85);border-radius:99px;padding:3px 9px;box-shadow:0 2px 6px -2px rgba(80,50,20,.35)}
+.blob-box{position:relative;height:232px;display:flex;align-items:flex-end;justify-content:center}
+.blob-box svg{width:min(228px,100%);height:auto;aspect-ratio:228/232;max-height:232px;overflow:visible;transition:filter .6s}
+.card.dead .blob-box svg{filter:grayscale(.9) brightness(1.04) contrast(.9)}
+.info{position:relative;margin-top:2px}
+.name{text-wrap:balance;font-weight:800;font-size:16px;line-height:1.15;min-height:2.3em;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.money{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.01em;margin-top:2px}
+.pct{font-size:13px;font-weight:700;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.pct .up{color:#2e7d47}.pct .down{color:#b33a28}
+.hp{margin:9px auto 0;width:min(170px,92%);}
+.hp-row{display:flex;justify-content:space-between;font-size:12px;font-weight:800;color:var(--ink-2);margin-bottom:4px}
+.hp-bar{height:14px;border-radius:99px;background:#ead9c3;box-shadow:inset 0 2px 3px rgba(80,50,20,.28);overflow:hidden;position:relative}
+.hp-fill{height:100%;border-radius:99px;width:50%;background:var(--good);transition:width .25s,background-color .4s;
+  box-shadow:inset 0 3px 0 rgba(255,255,255,.35),inset 0 -3px 4px rgba(0,0,0,.15)}
+.hp-bar::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 calc(10% - 2px),rgba(255,250,240,.65) calc(10% - 2px) 10%)}
+.mood{text-wrap:balance;margin-top:7px;font-size:13px;font-weight:700;color:var(--ink-2);min-height:2.6em;line-height:1.3;padding:0 6px}
+.card.dead .money{color:#8b8079;text-decoration:line-through 2px rgba(120,100,90,.5)}
+.pop{position:absolute;left:50%;top:70px;transform:translateX(-50%);font-weight:800;font-size:14px;pointer-events:none;white-space:nowrap;
+  padding:3px 8px;border-radius:99px;background:#fff;box-shadow:0 4px 10px -4px rgba(0,0,0,.35);animation:pop 1.4s ease-out forwards;z-index:5}
+.pop.win{color:#23703c}.pop.loss{color:#a8321f}
+@keyframes pop{0%{opacity:0;transform:translate(-50%,10px) scale(.8)}15%{opacity:1;transform:translate(-50%,0) scale(1.05)}100%{opacity:0;transform:translate(-50%,-46px) scale(1)}}
+
+/* blob motion */
+.bob{animation:bob 2.6s ease-in-out infinite;transform-box:fill-box;transform-origin:50% 100%}
+@keyframes bob{0%,100%{transform:translateY(0) scale(1,1)}45%{transform:translateY(-7px) scale(.97,1.04)}55%{transform:translateY(-7px) scale(.97,1.04)}85%{transform:translateY(0) scale(1.04,.96)}}
+.m-scared .bob{animation:shiver .22s linear infinite}
+@keyframes shiver{0%,100%{transform:translateX(0)}25%{transform:translateX(-1.5px) rotate(-.6deg)}75%{transform:translateX(1.5px) rotate(.6deg)}}
+.tip{transform-box:fill-box;transform-origin:50% 50%;transition:transform .9s cubic-bezier(.5,1.6,.5,1)}
+.m-dead .tip{transform:translateY(var(--dy,0px)) rotate(-84deg)}
+.m-dead .bob{animation:none}
+.face{display:none}
+.m-happy .f-happy,.m-fine .f-fine,.m-worried .f-worried,.m-scared .f-scared,.m-dead .f-dead{display:inline}
+.halo,.grave,.fallen{display:none}
+.m-dead .crown{display:none}
+.m-dead .fallen{display:inline}
+.m-dead .halo,.m-dead .grave{display:inline}
+.halo{animation:halo 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes halo{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+.blush,.sweat{display:none}
+.m-happy .blush,.m-fine .blush,.m-worried .blush{display:inline}
+.m-scared .sweat{display:inline}
+.sweat{animation:sweat 1.2s ease-in infinite;transform-box:fill-box}
+@keyframes sweat{0%{transform:translateY(-3px);opacity:0}30%{opacity:1}100%{transform:translateY(10px);opacity:0}}
+
+/* chart */
+.chart-wrap{margin-top:16px;display:grid;grid-template-columns:1fr 300px;gap:18px;align-items:stretch}
+.chart{background:#fffdf8;border-radius:20px;border:1px solid var(--line);padding:12px 12px 6px;position:relative}
+.chart svg{display:block;width:100%;height:270px;cursor:crosshair}
+.chart .ttl{display:flex;justify-content:space-between;align-items:baseline;padding:2px 6px 4px}
+.chart .ttl b{font-size:15px}.chart .ttl span{font-size:12px;color:var(--muted);font-weight:700}
+.legend{background:#fff6e6;border-radius:20px;border:1.5px dashed #d9bf98;padding:16px 18px;font-size:14px;color:var(--ink-2);line-height:1.45}
+.legend h3{margin:0 0 8px;font-size:16px;color:var(--ink)}
+.legend ul{margin:0;padding-left:0;list-style:none}
+.legend li{margin:0 0 9px;padding-left:24px;position:relative}
+.legend li::before{content:attr(data-i);position:absolute;left:0;top:0;font-weight:800;color:#b57b45}
+.legend b{color:var(--ink)}
+.faces{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.faces span{background:#fff;border-radius:99px;padding:3px 9px;font-size:12px;font-weight:700;border:1px solid #ead9c1}
+.ticker{margin-top:12px;min-height:24px;font-size:14px;font-weight:700;color:#7a4b25}
+
+table.final{width:100%;border-collapse:separate;border-spacing:0;margin-top:16px;font-size:14px}
+table.final th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:right;padding:8px 10px;border-bottom:1.5px solid var(--line)}
+table.final th:first-child,table.final td:first-child{text-align:left}
+table.final td{padding:10px;text-align:right;border-bottom:1px solid #efe4d4;font-variant-numeric:tabular-nums}
+table.final td .dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:8px;vertical-align:-1px;box-shadow:inset 0 -2px 2px rgba(0,0,0,.2)}
+.note{font-size:13px;color:var(--muted);margin:14px 2px 0}
+.live .lane{height:396px}
+.day1{display:inline-flex;gap:8px;align-items:center;background:#fff;border-radius:99px;padding:8px 14px;font-weight:700;font-size:14px;color:var(--ink-2);border:1px solid var(--line)}
+footer{color:var(--muted);font-size:13px;text-align:center;margin-top:8px}
+.still *,.still *::before{transition:none!important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+@media (max-width:1100px){
+  .lane{height:auto!important;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));row-gap:14px}
+  .card{position:relative;left:auto!important;width:auto}
+  .chart-wrap{grid-template-columns:1fr}
+  .controls{grid-template-columns:auto 1fr;}
+  .scrub,.right-ctl{grid-column:1/-1}
+}
+@media (max-width:640px){
+  .lane{grid-template-columns:repeat(2,minmax(0,1fr))}
+  h1{font-size:34px}
+  .wrap{padding:20px 14px 40px}
+}
+@media (prefers-reduced-motion:reduce){
+  .bob,.halo,.sweat,.m-scared .bob{animation:none}
+  .card,.tip{transition:none}
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <filter id="clay" x="-15%" y="-15%" width="130%" height="130%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.018" numOctaves="2" seed="4" result="warp"/>
+      <feDisplacementMap in="SourceGraphic" in2="warp" scale="5" xChannelSelector="R" yChannelSelector="G" result="shape"/>
+      <feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="9" result="grain"/>
+      <feColorMatrix in="grain" type="matrix" values="0 0 0 0 0.25  0 0 0 0 0.15  0 0 0 0 0.1  0 0 0 -1.4 0.78" result="speck"/>
+      <feComposite in="speck" in2="shape" operator="in" result="speckIn"/>
+      <feMerge><feMergeNode in="shape"/><feMergeNode in="speckIn"/></feMerge>
+    </filter>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6"/></filter>
+    <filter id="soft2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2"/></filter>
+    <radialGradient id="ground" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#6b3d1c" stop-opacity=".42"/><stop offset=".6" stop-color="#6b3d1c" stop-opacity=".16"/><stop offset="1" stop-color="#6b3d1c" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="eyeWhite" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#fff"/><stop offset=".7" stop-color="#f6f1ea"/><stop offset="1" stop-color="#dcd2c6"/></radialGradient>
+    <radialGradient id="lens" cx="35%" cy="30%" r="80%"><stop offset="0" stop-color="#4a4a52"/><stop offset=".6" stop-color="#18181c"/><stop offset="1" stop-color="#050506"/></radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe58a"/><stop offset=".5" stop-color="#f4c02f"/><stop offset="1" stop-color="#c98b12"/></linearGradient>
+    <radialGradient id="felt" cx="35%" cy="25%" r="80%"><stop offset="0" stop-color="#4a4344"/><stop offset=".6" stop-color="#211d1e"/><stop offset="1" stop-color="#0d0b0b"/></radialGradient>
+    <linearGradient id="stone" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d9d3cc"/><stop offset="1" stop-color="#a59d95"/></linearGradient>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="kicker">Project T · strategy arena</div>
+      <h1>Six blobs, six strategies</h1>
+      <p class="sub">Each blob runs its own US$100,000 book. Bigger blob, more money. Its health drops when it falls from its own best balance, and a 20% fall knocks it out for good.</p>
+    </div>
+    <span class="paper-tag"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="7" width="12" height="8" rx="2" fill="#b08a55"/><path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="#b08a55" stroke-width="2" fill="none"/></svg>Paper / virtual money. No real orders.</span>
+  </header>
+
+  <section class="panel" id="bt" aria-labelledby="bt-h">
+    <div class="panel-head">
+      <div><div class="kicker">Backtest replay</div><h2 id="bt-h">2022 to 2026, one trading day at a time</h2>
+        <p id="bt-range"></p></div>
+    </div>
+    <div class="controls">
+      <button class="play" id="play" aria-label="Play replay"><svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path id="play-ico" d="M6 3.5v15l13-7.5z" fill="#fff"/></svg></button>
+      <div class="date-big" aria-live="off"><b id="bt-date">—</b><span id="bt-day">day 1</span></div>
+      <div class="scrub"><label class="sr" for="scrub">Replay date</label><input type="range" id="scrub" min="0" max="1" value="0" step="1"><div class="ticks" id="ticks"></div></div>
+      <div class="right-ctl">
+        <div class="seg" role="group" aria-label="Replay speed">
+          <button data-speed="12" aria-pressed="false">Slow</button><button data-speed="40" aria-pressed="true">Normal</button><button data-speed="120" aria-pressed="false">Fast</button>
+        </div>
+        <button class="chip" data-jump="2022-10-12">2022 slump</button>
+        <button class="chip" data-jump="end">The end</button>
+      </div>
+    </div>
+    <div class="stage"><div class="lane" id="bt-lane"></div></div>
+    <div class="ticker" id="ticker" aria-live="polite"></div>
+    <div class="chart-wrap">
+      <div class="chart"><div class="ttl"><b>Money over time</b><span>click the chart to jump to a date</span></div><svg id="bt-chart" role="img" aria-label="Equity curves for all six strategies"></svg></div>
+      <aside class="legend" aria-label="How health works">
+        <h3>How health works</h3>
+        <ul>
+          <li data-i="$"><b>Money = body size.</b> More money, bigger blob. Everyone starts at $100,000.</li>
+          <li data-i="♥"><b>Health = distance from its best.</b> 100 at a new high. It loses 5 points for every 1% the book falls from its own best balance.</li>
+          <li data-i="✕"><b>Knocked out</b> (x x eyes, tipped over) at a 20% fall from its best, or if its money halves. That is the arena's own 20% drop rule. Out means out for the rest of the run.</li>
+        </ul>
+        <div class="faces"><span>^ ^ happy: 85+</span><span>• • fine: 60+</span><span>worried: 30+</span><span>hanging on: under 30</span><span>x x out</span></div>
+      </aside>
+    </div>
+    <table class="final" id="final"></table>
+    <p class="note" id="bt-note"></p>
+  </section>
+
+  <section class="panel live" id="fw" aria-labelledby="fw-h">
+    <div class="panel-head">
+      <div><div class="kicker">Live paper arena</div><h2 id="fw-h">The forward run</h2><p id="fw-sub"></p></div>
+      <span class="day1" id="fw-badge"></span>
+    </div>
+    <div class="stage"><div class="lane" id="fw-lane"></div></div>
+    <div class="chart" id="fw-chart-box" style="margin-top:16px;display:none"><div class="ttl"><b>Money since the start of the forward run</b><span></span></div><svg id="fw-chart" role="img" aria-label="Forward run equity curves"></svg></div>
+  </section>
+  <footer id="foot"></footer>
+</div>
+
+<script>
+const DATA = /*__ARENA_DATA__*/null;
+
+/* ---------- characters ---------- */
+const CHAR = {
+  baseline:{color:"#4f86e6", dark:"#2c5fb8", acc:"beret",
+    body:"M100,36 C146,36 170,84 172,128 C174,168 146,186 100,186 C54,186 26,168 28,128 C30,84 54,36 100,36Z",
+    eyes:[[80,108],[120,108]], er:10, mouth:[100,136], cheek:[[62,128],[138,128]], top:38, w:146},
+  playbook:{color:"#3fb3a8", dark:"#20807a", acc:"book",
+    body:"M100,52 C150,52 178,94 178,136 C178,172 146,186 100,186 C54,186 22,172 22,136 C22,94 50,52 100,52Z",
+    eyes:[[80,118],[120,118]], er:10, mouth:[100,145], cheek:[[58,138],[142,138]], top:52, w:156},
+  breakout:{color:"#f08a4b", dark:"#c25a22", acc:"band",
+    body:"M100,64 C158,64 186,102 186,142 C186,174 152,186 100,186 C48,186 14,174 14,142 C14,102 42,64 100,64Z",
+    eyes:[[78,124],[122,124]], er:10, mouth:[100,150], cheek:[[52,144],[148,144]], top:64, w:172},
+  meanrev:{color:"#f4c53f", dark:"#c9921a", acc:"glasses",
+    body:"M100,44 C147,44 177,80 177,122 C177,164 147,186 100,186 C53,186 23,164 23,122 C23,80 53,44 100,44Z",
+    eyes:[[77,110],[123,110]], er:10, mouth:[100,142], cheek:[[56,134],[144,134]], top:44, w:154},
+  rotation:{color:"#f37aa6", dark:"#c94a7a", acc:"shades",
+    body:"M100,66 C108,50 122,42 138,42 C162,42 180,62 180,92 C180,136 140,166 110,183 Q100,189 90,183 C60,166 20,136 20,92 C20,62 38,42 62,42 C78,42 92,50 100,66Z",
+    eyes:[[72,98],[128,98]], er:10, mouth:[100,134], cheek:[[50,122],[150,122]], top:44, w:160},
+  spy:{color:"#6cbf55", dark:"#3f8a2f", acc:"crown",
+    body:"M30,140 C28,108 40,88 50,80 C42,62 52,38 72,38 C86,38 94,50 96,60 L104,60 C106,50 114,38 128,38 C148,38 158,62 150,80 C160,88 172,108 170,140 C170,174 142,186 100,186 C58,186 30,174 30,140Z",
+    eyes:[[72,62],[128,62]], er:15, mouth:[100,122], cheek:[[56,112],[144,112]], top:38, w:142, googly:true},
+};
+function shade(hex, amt){ // amt -1..1 toward black/white
+  const n=parseInt(hex.slice(1),16); let r=n>>16,g=n>>8&255,b=n&255;
+  const t=amt<0?0:255, p=Math.abs(amt);
+  r=Math.round(r+(t-r)*p); g=Math.round(g+(t-g)*p); b=Math.round(b+(t-b)*p);
+  return "#"+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+}
+function eyesOpen(c, look, big){
+  return c.eyes.map(([x,y])=>{
+    const r=c.er*(big?1.18:1), pr=c.googly? r*.48 : r*(big?.36:.6);
+    const [dx,dy]=look;
+    return `<ellipse cx="${x}" cy="${y}" rx="${r}" ry="${r*1.08}" fill="url(#eyeWhite)" stroke="${shade(c.dark,-.35)}" stroke-opacity=".25" stroke-width="1.2"/>
+      <circle cx="${x+dx*r*.35}" cy="${y+dy*r*.35}" r="${pr}" fill="#1e1a19"/>
+      <circle cx="${x+dx*r*.35-pr*.35}" cy="${y+dy*r*.35-pr*.4}" r="${Math.max(1.6,pr*.32)}" fill="#fff"/>`;
+  }).join("");
+}
+function faceSVG(c, k){
+  const [mx,my]=c.mouth, ink="#2a1d1a";
+  const hide = c.acc==="shades";
+  const brows=(tilt)=>c.eyes.map(([x,y],i)=>{const s=i?1:-1, yy=y-c.er*(hide?2.5:1.9);
+      return `<path d="M${x-9*s},${yy-tilt} Q${x},${yy-3} ${x+8*s},${yy+tilt}" stroke="${ink}" stroke-width="3.4" fill="none" stroke-linecap="round"/>`}).join("");
+  const happyEyes = c.eyes.map(([x,y])=>`<path d="M${x-c.er*.9},${y+2} Q${x},${y-c.er*1.1} ${x+c.er*.9},${y+2}" stroke="${ink}" stroke-width="4" fill="none" stroke-linecap="round"/>`).join("");
+  const xEyes = c.eyes.map(([x,y])=>{const r=c.er*.75;return `<path d="M${x-r},${y-r} L${x+r},${y+r} M${x+r},${y-r} L${x-r},${y+r}" stroke="${hide?'#fff':ink}" stroke-width="4" stroke-linecap="round"/>`}).join("");
+  const eyesH = hide? "" : (c.googly? eyesOpen(c,[0,-.2]) : happyEyes);
+  return `
+  <g class="face f-happy">${eyesH}
+    <path d="M${mx-15},${my-3} Q${mx},${my+18} ${mx+15},${my-3} Z" fill="${ink}"/><path d="M${mx-7},${my+6} Q${mx},${my+11} ${mx+7},${my+6} Q${mx},${my+3} ${mx-7},${my+6}Z" fill="#f27a86"/></g>
+  <g class="face f-fine">${hide?"":eyesOpen(c,[0,0])}
+    <path d="M${mx-10},${my} Q${mx},${my+9} ${mx+10},${my}" stroke="${ink}" stroke-width="3.6" fill="none" stroke-linecap="round"/></g>
+  <g class="face f-worried">${hide?"":eyesOpen(c,[.2,.55])}${brows(4)}
+    <path d="M${mx-11},${my+3} q5.5,-5 11,0 t11,0" stroke="${ink}" stroke-width="3.4" fill="none" stroke-linecap="round"/></g>
+  <g class="face f-scared">${hide?"":eyesOpen(c,[0,.1],true)}${brows(7)}
+    <ellipse cx="${mx}" cy="${my+3}" rx="6" ry="7.5" fill="${ink}"/></g>
+  <g class="face f-dead">${hide?"":xEyes}
+    <path d="M${mx-12},${my+3} q4,-4 8,0 t8,0 t8,0" stroke="${ink}" stroke-width="3.4" fill="none" stroke-linecap="round"/></g>`;
+}
+function accSVG(c, key){
+  const t=c.top;
+  switch(c.acc){
+    case "beret": return `<g transform="rotate(-14 100 ${t})">
+        <ellipse cx="100" cy="${t+6}" rx="50" ry="17" fill="url(#felt)" filter="url(#clay)"/>
+        <ellipse cx="88" cy="${t-1}" rx="24" ry="6" fill="#fff" opacity=".12" filter="url(#soft2)"/>
+        <path d="M98,${t-11} q2,-9 8,-10" stroke="#151213" stroke-width="5" stroke-linecap="round" fill="none"/></g>`;
+    case "book": return `<g transform="rotate(-6 100 ${t})" filter="url(#clay)">
+        <path d="M58,${t+12} L100,${t-12} L142,${t+12} L138,${t+15} L100,${t-6} L62,${t+15}Z" fill="#f8f1e2"/>
+        <path d="M64,${t+10} L100,${t-9} M136,${t+10} L100,${t-9}" stroke="#d6c8b0" stroke-width="1.3"/>
+        <path d="M52,${t+10} L100,${t-18} L148,${t+10} L144,${t+15} L100,${t-11} L56,${t+15}Z" fill="#d94b3c" stroke="#a8321f" stroke-width="1.2" stroke-linejoin="round"/>
+        <path d="M96,${t-14} L104,${t-14} L104,${t-9} L96,${t-9}Z" fill="#a8321f"/>
+        <path d="M118,${t+4} l0,16 l4,-4 l4,4 l0,-19" fill="#f4c02f"/>
+        <path d="M70,${t+4} L94,${t-10}" stroke="#fff" stroke-opacity=".35" stroke-width="3" stroke-linecap="round"/></g>`;
+    case "band": return `<g>
+        <path d="M20,108 Q100,72 180,108 L182,124 Q100,90 18,124Z" fill="#e8463a" filter="url(#clay)"/>
+        <path d="M24,113 Q100,79 176,113" stroke="#fff" stroke-width="3.5" fill="none" opacity=".9"/>
+        <path d="M176,112 q20,-6 26,8 q-14,-2 -22,6Z M178,118 q16,10 10,24 q-6,-12 -14,-14Z" fill="#d03a2f"/></g>`;
+    case "glasses": return `<g fill="none" stroke="#3b2a22" stroke-width="4.2">
+        ${c.eyes.map(([x,y])=>`<circle cx="${x}" cy="${y}" r="19" fill="#fff" fill-opacity=".14"/>`).join("")}
+        <path d="M${c.eyes[0][0]+19},${c.eyes[0][1]-2} Q100,${c.eyes[0][1]-10} ${c.eyes[1][0]-19},${c.eyes[1][1]-2}"/>
+        <path d="M${c.eyes[0][0]-19},${c.eyes[0][1]-4} L28,${c.eyes[0][1]-10} M${c.eyes[1][0]+19},${c.eyes[1][1]-4} L172,${c.eyes[1][1]-10}"/></g>`;
+    case "shades": return `<g>
+        ${c.eyes.map(([x,y])=>`<circle cx="${x}" cy="${y}" r="21" fill="url(#lens)" stroke="#111" stroke-width="3"/>
+          <path d="M${x-12},${y-8} q6,-8 15,-8" stroke="#fff" stroke-opacity=".55" stroke-width="3.2" fill="none" stroke-linecap="round"/>`).join("")}
+        <path d="M${c.eyes[0][0]+20},${c.eyes[0][1]-4} Q100,${c.eyes[0][1]-12} ${c.eyes[1][0]-20},${c.eyes[1][1]-4}" stroke="#111" stroke-width="4" fill="none"/></g>`;
+    case "crown": return `<g class="crown" transform="rotate(-8 100 ${t+22})" filter="url(#clay)">
+        <path d="M84,${t+26} L82,${t+6} L92,${t+15} L100,${t+1} L108,${t+15} L118,${t+6} L116,${t+26}Z" fill="url(#gold)" stroke="#b07a10" stroke-width="1.5" stroke-linejoin="round"/>
+        <circle cx="100" cy="${t+19}" r="3" fill="#e2433a"/><circle cx="82" cy="${t+6}" r="2.6" fill="#ffe58a"/><circle cx="100" cy="${t+1}" r="2.6" fill="#ffe58a"/><circle cx="118" cy="${t+6}" r="2.6" fill="#ffe58a"/></g>`;
+  }
+  return "";
+}
+function blobSVG(key, uid){
+  const c=CHAR[key], id=`${uid}-${key}`;
+  const light=shade(c.color,.55), mid=c.color, dark=shade(c.dark,-.15);
+  return `<svg viewBox="-26 -44 252 252" aria-hidden="true">
+   <defs>
+    <radialGradient id="b-${id}" cx="36%" cy="28%" r="78%"><stop offset="0" stop-color="${light}"/><stop offset=".45" stop-color="${mid}"/><stop offset="1" stop-color="${dark}"/></radialGradient>
+    <clipPath id="c-${id}"><path d="${c.body}"/></clipPath>
+   </defs>
+   <g class="grave"><g transform="translate(152 128)">
+     <path d="M0,54 L0,14 Q0,0 18,0 Q36,0 36,14 L36,54Z" fill="url(#stone)" filter="url(#clay)"/>
+     <text x="18" y="26" font-size="10" font-weight="800" text-anchor="middle" fill="#6d655e" font-family="inherit">RIP</text>
+     <path d="M-6,54 H44" stroke="#8b6b4a" stroke-width="4" stroke-linecap="round" opacity=".5"/></g></g>
+   ${c.acc==="crown"?`<g class="fallen" transform="translate(186 170) rotate(28)"><path d="M0,14 L-2,0 L6,6 L12,-3 L18,6 L26,0 L24,14Z" fill="url(#gold)" stroke="#b07a10" stroke-width="1.2" stroke-linejoin="round"/></g>`:""}
+   <ellipse class="gshadow" cx="100" cy="188" rx="${c.w*.52}" ry="11" fill="url(#ground)"/>
+   <g class="size"><g class="tip"><g class="bob">
+     <g filter="url(#clay)">
+       <path d="${c.body}" fill="url(#b-${id})"/>
+       <g clip-path="url(#c-${id})">
+         <ellipse cx="112" cy="200" rx="90" ry="34" fill="${shade(c.dark,-.45)}" opacity=".35" filter="url(#soft)"/>
+         <ellipse cx="70" cy="${c.top+28}" rx="26" ry="16" fill="#fff" opacity=".55" filter="url(#soft)" transform="rotate(-25 70 ${c.top+28})"/>
+         <path d="${c.body}" fill="none" stroke="#fff" stroke-opacity=".25" stroke-width="3" transform="translate(2 3)"/>
+       </g>
+     </g>
+     <circle cx="62" cy="${c.top+22}" r="4" fill="#fff" opacity=".85"/>
+     ${c.cheek.map(([x,y])=>`<ellipse class="blush" cx="${x}" cy="${y}" rx="11" ry="6.5" fill="#ff7d8e" opacity=".42" filter="url(#soft2)"/>`).join("")}
+     ${faceSVG(c,key)}
+     ${accSVG(c,key)}
+     <path class="sweat" d="M${c.eyes[1][0]+30},${c.eyes[1][1]-18} q-7,10 0,13 q7,-3 0,-13z" fill="#8fd3ff" stroke="#4aa3d8" stroke-width="1.4"/>
+   </g></g>
+   <g class="halo"><ellipse cx="100" cy="${186-c.w-6}" rx="28" ry="7.5" fill="none" stroke="url(#gold)" stroke-width="6"/><ellipse cx="100" cy="${186-c.w-6}" rx="28" ry="7.5" fill="none" stroke="#fff6c4" stroke-width="1.5" opacity=".8"/></g>
+   </g>
+  </svg>`;
+}
+
+/* ---------- helpers ---------- */
+const START = DATA ? DATA.start_cash : 100000;
+const RULE = DATA ? DATA.rule : {dead_drawdown:.2, dead_floor:.5};
+const SHORT = Object.fromEntries((DATA?DATA.strategies:[]).map(s=>[s.key,s.short]));
+const KEYS = (DATA?DATA.strategies:[]).map(s=>s.key);
+const fmtMoney = v => "$"+Math.round(v).toLocaleString("en-US");
+const fmtK = v => (v<0?"−":"+")+"$"+(Math.abs(v)>=1000?(Math.abs(v)/1000).toFixed(1)+"k":Math.round(Math.abs(v)));
+const fmtPct = (v,d=1) => (v>=0?"+":"−")+Math.abs(v*100).toFixed(d)+"%";
+const M = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const niceDate = d => { const [y,m,dd]=d.split("-"); return `${+dd} ${M[+m-1]} ${y}`; };
+function mood(h, dead){ if(dead) return "dead"; if(h>=85) return "happy"; if(h>=60) return "fine"; if(h>=30) return "worried"; return "scared"; }
+function hpColor(h){ return h>=60? "var(--good)" : h>=30? "var(--warn)" : "var(--bad)"; }
+function moodText(m, dd, deadDate){
+  const f = (dd*100).toFixed(1)+"%";
+  return {happy: dd<0.001? "Feeling great: at its best ever" : `Feeling great: ${f} off its best`,
+          fine: `Doing fine: ${f} off its best`,
+          worried: `Worried: down ${f} from its best`,
+          scared: `Hanging on: down ${f} from its best`,
+          dead: `Knocked out ${deadDate?niceDate(deadDate):""}: fell ${(RULE.dead_drawdown*100).toFixed(0)}% from its best`}[m];
+}
+
+/* ---------- arena (cards in a lane) ---------- */
+function makeArena(laneEl, block, uid){
+  const cards={};
+  KEYS.forEach(k=>{
+    if(!block.books[k]) return;
+    const el=document.createElement("div"); el.className="card";
+    el.innerHTML=`<span class="rank">#1</span><div class="blob-box">${blobSVG(k,uid)}</div>
+      <div class="info"><div class="name">${SHORT[k]}</div><div class="money">$100,000</div><div class="pct"></div>
+      <div class="hp"><div class="hp-row"><span>♥ Health</span><span class="hp-n">100</span></div><div class="hp-bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-label="Health of ${SHORT[k]}"><div class="hp-fill"></div></div></div>
+      <div class="mood"></div></div>`;
+    laneEl.appendChild(el);
+    { const c=CHAR[k], cy=(c.top+186)/2; el.querySelector(".tip").style.setProperty("--dy", (186-(cy+c.w/2))+"px"); }
+    cards[k]={el, svg:el.querySelector("svg"), size:el.querySelector(".size"), gs:el.querySelector(".gshadow"),
+      money:el.querySelector(".money"), pct:el.querySelector(".pct"), hpn:el.querySelector(".hp-n"), fill:el.querySelector(".hp-fill"),
+      bar:el.querySelector(".hp-bar"), mood:el.querySelector(".mood"), rank:el.querySelector(".rank"), m:null};
+  });
+  function show(i){
+    const rows=[];
+    for(const k in cards){
+      const b=block.books[k], c=cards[k];
+      const dead = b.dead!==null && i>=b.dead;
+      const eqShown = dead ? b.equity[b.dead] : b.equity[i];
+      const h = b.health[i], dd = b.drawdown[i];
+      const m = mood(h,dead);
+      if(m!==c.m){ c.svg.setAttribute("class","m-"+m); c.el.classList.toggle("dead",dead); c.m=m; }
+      const s=Math.max(.72, Math.min(1.28, Math.sqrt(eqShown/START)));
+      c.size.setAttribute("transform",`translate(100 186) scale(${s.toFixed(3)}) translate(-100 -186)`);
+      c.gs.setAttribute("rx",(CHAR[k].w*.52*s).toFixed(1));
+      c.money.textContent=fmtMoney(eqShown);
+      const r=eqShown/START-1;
+      c.pct.innerHTML = dead ? `out with ${fmtPct(r)} vs start`
+        : `<span class="${r>=0?'up':'down'}">${r>=0?"▲":"▼"} ${fmtPct(r)}</span> vs start`;
+      c.hpn.textContent = dead? "0 · out" : h;
+      c.fill.style.width = h+"%"; c.fill.style.backgroundColor = hpColor(h);
+      c.bar.setAttribute("aria-valuenow",h);
+      c.mood.textContent = moodText(m, dd, dead? block.dates[b.dead] : null);
+      rows.push([k, dead?0:1, eqShown]);
+    }
+    rows.sort((a,b)=> b[1]-a[1] || b[2]-a[2]);
+    const tied = rows.every(r=>Math.abs(r[2]-rows[0][2])<0.5 && r[1]===rows[0][1]);
+    rows.forEach(([k],r)=>{ cards[k].el.style.left = `calc(${r} * 100% / 6)`; cards[k].el.style.order = r; cards[k].rank.textContent = tied? "tied" : "#"+(r+1); });
+  }
+  function pop(k, pnl, sym){
+    const c=cards[k]; if(!c) return;
+    const p=document.createElement("div"); p.className="pop "+(pnl>=0?"win":"loss");
+    p.textContent=`${fmtK(pnl)} ${sym}`; c.el.querySelector(".blob-box").appendChild(p);
+    setTimeout(()=>p.remove(),1500);
+  }
+  return {show, pop, cards};
+}
+
+/* ---------- chart ---------- */
+function makeChart(svg, block, onPick){
+  const dates=block.dates, n=dates.length;
+  let W=900,H=270, cursor=n-1;
+  const pad={l:62,r:16,t:12,b:26};
+  function draw(){
+    W=svg.clientWidth||900; svg.setAttribute("viewBox",`0 0 ${W} ${H}`);
+    let lo=Infinity,hi=-Infinity;
+    for(const k in block.books){ for(const e of block.books[k].equity){ lo=Math.min(lo,e); hi=Math.max(hi,e);} }
+    lo=Math.min(lo,START*.98); hi=Math.max(hi,START*1.02);
+    const step = hi-lo>80000? 25000 : hi-lo>20000? 10000 : 2000;
+    lo=Math.floor(lo/step)*step; hi=Math.ceil(hi/step)*step;
+    const X=i=> pad.l + (n<=1?0:(W-pad.l-pad.r)*i/(n-1)), Y=v=> pad.t + (H-pad.t-pad.b)*(1-(v-lo)/(hi-lo));
+    svg._X=X;
+    let s="";
+    for(let v=lo; v<=hi+1; v+=step){ const y=Y(v);
+      s+=`<line x1="${pad.l}" x2="${W-pad.r}" y1="${y}" y2="${y}" stroke="${v===START?'#c9a47a':'#efe4d4'}" stroke-width="${v===START?1.5:1}" ${v===START?'stroke-dasharray="5 5"':''}/>
+          <text x="${pad.l-8}" y="${y+4}" text-anchor="end" font-size="11" font-weight="700" fill="#9a8c80">$${Math.round(v/1000)}k</text>${v===START?`<text x="${W-pad.r}" y="${y-6}" text-anchor="end" font-size="11" font-weight="800" fill="#b58a5c">start $100k</text>`:''}`; }
+    let lastY=null;
+    dates.forEach((d,i)=>{ const y=d.slice(0,4); if(y!==lastY){ lastY=y; if(i>0||n<30) s+=`<text x="${X(i)}" y="${H-6}" font-size="11" font-weight="700" fill="#9a8c80" text-anchor="middle">${n<30?niceDate(d):y}</text><line x1="${X(i)}" x2="${X(i)}" y1="${H-pad.b}" y2="${H-pad.b+4}" stroke="#cbb9a3"/>`; } });
+    s+=`<defs><clipPath id="${svg.id}-clip"><rect class="cliprect" x="0" y="0" width="${X(cursor)}" height="${H}"/></clipPath></defs>`;
+    const order=[...KEYS].reverse();
+    for(const k of order){ const b=block.books[k]; if(!b) continue;
+      const pts=b.equity.map((e,i)=>`${X(i).toFixed(1)},${Y(e).toFixed(1)}`);
+      const alive = b.dead===null? pts : pts.slice(0,b.dead+1), ghost = b.dead===null? [] : pts.slice(b.dead);
+      const col=CHAR[k].dark;
+      s+=`<polyline points="${pts.join(" ")}" fill="none" stroke="${col}" stroke-opacity=".14" stroke-width="2"/>`;
+      s+=`<g clip-path="url(#${svg.id}-clip)"><polyline points="${alive.join(" ")}" fill="none" stroke="${col}" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>`;
+      if(ghost.length) s+=`<polyline points="${ghost.join(" ")}" fill="none" stroke="#9b918a" stroke-width="1.8" stroke-dasharray="3 4"/>`;
+      s+=`</g>`;
+      if(b.dead!==null){ const x=X(b.dead), y=Y(b.equity[b.dead]);
+        s+=`<g class="deathmark" data-i="${b.dead}"><circle cx="${x}" cy="${y}" r="9" fill="#fff" stroke="#6d655e" stroke-width="2"/><path d="M${x-4},${y-4} l8,8 m0,-8 l-8,8" stroke="#3a312c" stroke-width="2.2" stroke-linecap="round"/></g>`; }
+    }
+    s+=`<line class="cur" x1="0" x2="0" y1="${pad.t}" y2="${H-pad.b}" stroke="#2b2420" stroke-width="1.5" stroke-dasharray="2 3"/>`;
+    for(const k of KEYS){ if(block.books[k]) s+=`<circle class="cd" data-k="${k}" r="5.5" fill="${CHAR[k].color}" stroke="#fff" stroke-width="2"/>`; }
+    svg.innerHTML=s; svg._Y=Y; set(cursor);
+  }
+  function set(i){
+    cursor=i; const X=svg._X, Y=svg._Y; if(!X) return;
+    const x=X(i); svg.querySelector(".cliprect").setAttribute("width",x+1);
+    const cur=svg.querySelector(".cur"); cur.setAttribute("x1",x); cur.setAttribute("x2",x);
+    svg.querySelectorAll(".cd").forEach(c=>{ const b=block.books[c.dataset.k]; const j=(b.dead!==null&&i>b.dead)?b.dead:i;
+      c.setAttribute("cx",X(j)); c.setAttribute("cy",Y(b.equity[j])); c.setAttribute("fill", (b.dead!==null&&i>=b.dead)?"#a39a93":CHAR[c.dataset.k].color); });
+  }
+  svg.addEventListener("click",e=>{ if(!onPick||n<2) return; const r=svg.getBoundingClientRect(); const x=(e.clientX-r.left)*(W/r.width);
+    onPick(Math.max(0,Math.min(n-1,Math.round((x-pad.l)/(W-pad.l-pad.r)*(n-1))))); });
+  new ResizeObserver(draw).observe(svg);
+  draw();
+  return {set};
+}
+
+/* ---------- backtest replay ---------- */
+function initBacktest(){
+  const bt=DATA&&DATA.backtest; const sec=document.getElementById("bt");
+  if(!bt||!bt.dates.length){ sec.querySelector(".controls").style.display="none";
+    document.getElementById("bt-lane").innerHTML='<p style="padding:40px;text-align:center">No backtest curves yet. Run <code>python -m trader arena-backtest</code>, then <code>arena-ui</code>.</p>'; return; }
+  const n=bt.dates.length;
+  document.getElementById("bt-range").textContent=`${niceDate(bt.dates[0])} to ${niceDate(bt.dates[n-1])} · ${n.toLocaleString()} trading days · press play and watch them go`;
+  const arena=makeArena(document.getElementById("bt-lane"), bt, "bt");
+  const scrub=document.getElementById("scrub"); scrub.max=n-1;
+  const dateEl=document.getElementById("bt-date"), dayEl=document.getElementById("bt-day"), ticker=document.getElementById("ticker");
+  const ticks=document.getElementById("ticks"); let ly=null;
+  bt.dates.forEach((d,i)=>{ const y=d.slice(0,4); if(y!==ly){ ly=y; const s=document.createElement("span"); s.style.left=(i/(n-1)*100)+"%"; s.textContent=y; ticks.appendChild(s);} });
+  const tradesByDay={}; for(const k in bt.books){ for(const [i,p,sym] of bt.books[k].trades){ (tradesByDay[i]=tradesByDay[i]||[]).push([k,p,sym]); } }
+  let idx=0, playing=false, speed=40, last=0, acc=0, lastPop={};
+  const chart=makeChart(document.getElementById("bt-chart"), bt, i=>{ go(i); });
+  function events(i){
+    const out=[]; for(const k in bt.books){ if(bt.books[k].dead===i) out.push(`${SHORT[k]} got knocked out on ${niceDate(bt.dates[i])}: it fell ${(RULE.dead_drawdown*100).toFixed(0)}% from its best.`); }
+    return out;
+  }
+  function go(i, fromPlay){
+    const prev=idx; idx=Math.max(0,Math.min(n-1,i));
+    arena.show(idx); chart.set(idx);
+    scrub.value=idx; scrub.style.setProperty("--p",(idx/(n-1)*100)+"%");
+    dateEl.textContent=niceDate(bt.dates[idx]); dayEl.textContent=`trading day ${idx+1} of ${n}`;
+    if(fromPlay){
+      const now=performance.now();
+      for(let j=prev+1;j<=idx;j++){
+        const ev=events(j); if(ev.length) ticker.textContent="✕ "+ev.join(" ");
+        if(speed<=40) for(const [k,p,sym] of (tradesByDay[j]||[])){ if(Math.abs(p)>=250 && (now-(lastPop[k]||0))>380){ arena.pop(k,p,sym); lastPop[k]=now; } }
+      }
+    } else {
+      const deadNow=KEYS.filter(k=>bt.books[k]&&bt.books[k].dead!==null&&idx>=bt.books[k].dead);
+      ticker.textContent = deadNow.length? "✕ "+deadNow.map(k=>`${SHORT[k]} is out since ${niceDate(bt.dates[bt.books[k].dead])}.`).join(" ") : "";
+    }
+  }
+  const playBtn=document.getElementById("play"), ico=document.getElementById("play-ico");
+  function setPlaying(p){ playing=p; ico.setAttribute("d", p? "M5 3.5h4.5v15H5zM12.5 3.5H17v15h-4.5z" : "M6 3.5v15l13-7.5z");
+    playBtn.setAttribute("aria-label", p?"Pause replay":"Play replay"); if(p){ if(idx>=n-1) go(0); last=performance.now(); acc=0; requestAnimationFrame(tick);} }
+  function tick(t){ if(!playing) return; acc+=(t-last)/1000*speed; last=t; const stepN=Math.floor(acc); if(stepN>0){ acc-=stepN; go(idx+stepN,true); }
+    if(idx>=n-1){ setPlaying(false); return; } requestAnimationFrame(tick); }
+  playBtn.onclick=()=>setPlaying(!playing);
+  scrub.oninput=()=>{ go(+scrub.value); };
+  document.querySelectorAll(".seg button").forEach(b=>b.onclick=()=>{ speed=+b.dataset.speed; document.querySelectorAll(".seg button").forEach(x=>x.setAttribute("aria-pressed", x===b)); });
+  document.querySelectorAll("[data-jump]").forEach(b=>b.onclick=()=>{ setPlaying(false); const j=b.dataset.jump; go(j==="end"? n-1 : Math.max(0,bt.dates.findIndex(d=>d>=j))); });
+  document.addEventListener("keydown",e=>{ if(e.target.tagName==="INPUT"&&e.key!==" ") return; if(e.key===" "){ e.preventDefault(); setPlaying(!playing);} });
+
+  // final standings table
+  const v=bt.verdicts||{}, cards=bt.cards||{};
+  const plain={ "trailed SPY":"made less than SPY", "drawdown over 20%":"fell over 20%" };
+  let rows=KEYS.filter(k=>bt.books[k]).map(k=>{ const b=bt.books[k], e=b.equity[n-1];
+    const fate = b.dead!==null? `knocked out ${niceDate(bt.dates[b.dead])}` : `survived (lowest health ${Math.min(...b.health)})`;
+    const ver = k==="spy"? "benchmark" : (v[k]? (v[k].survived? "passed" : "dropped: "+v[k].reasons.map(r=>plain[r]||r).join(", ")) : "");
+    return [k, e, Math.max(...b.drawdown), fate, ver]; }).sort((a,b)=>b[1]-a[1]);
+  document.getElementById("final").innerHTML=`<thead><tr><th>Strategy</th><th>Ended with</th><th>vs start</th><th>Worst fall</th><th>In the arena</th><th>Stage 1 check</th></tr></thead><tbody>`+
+    rows.map(([k,e,dd,fate,ver])=>`<tr><td><span class="dot" style="background:${CHAR[k].color}"></span><b>${SHORT[k]}</b></td><td>${fmtMoney(e)}</td><td>${fmtPct(e/START-1)}</td><td>${fmtPct(-dd)}</td><td>${fate}</td><td>${ver}</td></tr>`).join("")+"</tbody>";
+  const deadKs=KEYS.filter(k=>bt.books[k]&&bt.books[k].dead!==null);
+  document.getElementById("bt-note").textContent = (deadKs.length? deadKs.map(k=>`${SHORT[k]}'s book kept trading after it was knocked out; "Ended with" shows where it finished anyway (the grey dashed line on the chart).`).join(" ")+" " : "")
+    + "Backtest: daily bars, signals on the close, fills at the next open with slippage, no commissions. Past results, virtual money.";
+
+  // initial state: ?date=YYYY-MM-DD pauses on that day; otherwise start at day 1 and autoplay
+  const q=new URLSearchParams(location.search);
+  if(q.get("date")){ document.documentElement.classList.add("still"); const j=bt.dates.findIndex(d=>d>=q.get("date")); go(j<0?n-1:j);
+    requestAnimationFrame(()=>requestAnimationFrame(()=>document.documentElement.classList.remove("still"))); }
+  else { go(0); if(!matchMedia("(prefers-reduced-motion: reduce)").matches && q.get("autoplay")!=="0") setTimeout(()=>setPlaying(true),700); }
+}
+
+/* ---------- live forward run ---------- */
+function initForward(){
+  const fw=DATA&&DATA.forward, lane=document.getElementById("fw-lane");
+  if(!fw||!fw.dates.length){ document.getElementById("fw-sub").textContent="The forward paper run hasn't started yet.";
+    lane.innerHTML='<p style="padding:40px;text-align:center">Run <code>python -m trader arena-update</code> to start it.</p>'; return; }
+  const n=fw.dates.length, last=fw.dates[n-1];
+  document.getElementById("fw-sub").textContent=`Started ${niceDate(fw.start||fw.dates[0])} with fresh $100,000 books. Last close: ${niceDate(last)}. Same health rules, new lives.`;
+  document.getElementById("fw-badge").textContent = n===1? "Day 1: everyone is on $100,000. They start moving after the next close." : `${n} trading days in`;
+  const arena=makeArena(lane, fw, "fw"); arena.show(n-1);
+  if(n>1){ document.getElementById("fw-chart-box").style.display=""; makeChart(document.getElementById("fw-chart"), fw, null).set(n-1); }
+}
+
+initBacktest(); initForward();
+document.getElementById("foot").textContent = DATA? `Built ${DATA.generated.replace("T"," ").slice(0,16)} UTC from the arena's own files. Paper / virtual money: nothing on this page can place an order.` : "No data.";
+</script>
+</body>
+</html>

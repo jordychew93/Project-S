@@ -18,6 +18,7 @@ from .strategies import KEYS, PlaybookRunner, lineup
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 STATE = os.path.join(ROOT, "state", "arena.json")
 BACKTEST = os.path.join(ROOT, "state", "arena_backtest.json")
+BACKTEST_CURVES = os.path.join(ROOT, "state", "arena_backtest_curves.json")   # daily equity + closed trades (UI)
 RESULTS_MD = os.path.join(ROOT, "ARENA_RESULTS.md")
 EARNINGS = os.path.join(mk.CACHE_DIR, "earnings.json")
 
@@ -156,6 +157,11 @@ def results_markdown(cards, verdicts, start, end, ablation_rows=None, earnings_a
     return "\n".join(lines)
 
 
+def write_curves(runners, path=BACKTEST_CURVES):
+    """Daily equity curve and closed trades per strategy, for the arena UI replay."""
+    _write_json(path, {r.key: {"curve": r.curve, "closed": r.closed} for r in runners})
+
+
 def cmd_backtest(args):
     mkt = mk.Market(mk.load_market("hist", refresh=args.refresh or not os.path.exists(mk.cache_path("hist", "SPY"))))
     missing = [s for s in mk.SYMBOLS if s not in mkt.bars]
@@ -163,6 +169,7 @@ def cmd_backtest(args):
         raise SystemExit(f"arena-backtest: no data for {', '.join(missing)}")
     earnings = load_earnings()
     runners = run_backtest(mkt, args.start)
+    write_curves(runners)
     cards = scorecards(runners)
     verdicts = {k: stage1_verdict(k, m, cards["spy"]) for k, m in cards.items()}
     abl = ablation(mkt, args.start, earnings) if args.ablation else None

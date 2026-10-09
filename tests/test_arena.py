@@ -317,5 +317,48 @@ class ForwardTests(unittest.TestCase):
             self.assertNotIn(word, msg.lower())
 
 
+class UITests(unittest.TestCase):
+    def test_health_and_death_rule(self):
+        from trader.arena import ui
+        start = config.STARTING_CASH
+        # new high = 100; 10% off the peak = 50; 20% off the peak = dead, and death is permanent
+        eq = [start, start * 1.25, start * 1.125, start * 1.0, start * 1.3, start * 1.4]
+        health, dds, dead = ui.health_track(eq)
+        self.assertEqual(health[:3], [100, 100, 50])
+        self.assertAlmostEqual(dds[2], 0.10, places=4)
+        self.assertEqual(dead, 3)                         # 125k -> 100k is exactly a 20% fall
+        self.assertEqual(health[3:], [0, 0, 0])           # recovering money does not revive it
+        # a fall of 19.9% hurts badly but is survivable
+        health, _, dead = ui.health_track([start, start * 0.801, start * 0.9])
+        self.assertIsNone(dead)
+        self.assertLessEqual(health[1], 1)
+        # money down to half the start kills even with a custom, looser drawdown limit
+        _, _, dead = ui.health_track([start, start * 0.5], dead_dd=0.9)
+        self.assertEqual(dead, 1)
+        # the peak never starts below the starting cash: an early loss counts from $100k
+        health, _, dead = ui.health_track([start * 0.9])
+        self.assertEqual((health, dead), ([50], None))
+
+    def test_ui_page_builds_from_arena_files_only(self):
+        from trader.arena import ui
+        mkt = synthetic_market(330)
+        with tempfile.TemporaryDirectory() as tmp:
+            rs = runner.run_backtest(mkt, start="2024-06-01")
+            curves = os.path.join(tmp, "curves.json")
+            runner.write_curves(rs, curves)
+            state = os.path.join(tmp, "arena.json")
+            runner.update_forward(mkt, state)
+            data = ui.build_data(curves_path=curves, backtest_path=os.path.join(tmp, "none.json"), state_path=state)
+            html = ui.render(data)
+        self.assertEqual(set(data["backtest"]["books"]), set(strategies.KEYS))
+        n = len(data["backtest"]["dates"])
+        for b in data["backtest"]["books"].values():
+            self.assertEqual(len(b["equity"]), n)
+            self.assertEqual(len(b["health"]), n)
+        self.assertEqual(len(data["forward"]["dates"]), 1)
+        self.assertNotIn(ui.PLACEHOLDER, html)
+        self.assertIn("Paper / virtual money", html)
+
+
 if __name__ == "__main__":
     unittest.main()

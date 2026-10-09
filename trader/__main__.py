@@ -15,6 +15,7 @@ strategy arena (virtual $100k books only, never places orders; see trader/arena/
     python -m trader arena-backtest [--refresh] [--ablation]   stage 1 backtest, writes ARENA_RESULTS.md
     python -m trader arena-update [--offline]                  stage 2: advance the forward virtual books
     python -m trader arena-leaderboard                         weekly leaderboard message
+    python -m trader arena-ui [--quiet]                        rebuild the playful arena page (arena-ui/index.html)
 """
 
 import argparse
@@ -180,9 +181,14 @@ def main():
     up = sub.add_parser("arena-update", help="strategy arena stage 2: advance the virtual books to the latest close")
     up.add_argument("--offline", action="store_true", help="use cached bars instead of fetching from moomoo")
     sub.add_parser("arena-leaderboard", help="strategy arena: weekly leaderboard message")
+    ui = sub.add_parser("arena-ui", help="strategy arena: rebuild arena-ui/index.html and data.json")
+    ui.add_argument("--quiet", action="store_true", help="print nothing on success")
     args = parser.parse_args()
     if args.strategy:
         config.STRATEGY = args.strategy
+    if args.cmd == "arena-ui":
+        from .arena import ui as arena_ui
+        return arena_ui.cmd_ui(args)
     if args.cmd.startswith("arena-"):
         from .arena import runner
         return {"arena-backtest": runner.cmd_backtest, "arena-update": runner.cmd_update,
