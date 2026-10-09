@@ -92,6 +92,23 @@ One-time setup:
 3. Optional: go to **Actions → T daily scan → Run workflow** to test it straight away.
 4. Optional phone alerts: add `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` secrets to also get a Telegram message.
 
+## moomoo paper bot
+
+A second, local way to run the same strategy: US-stock trades are mirrored as orders in Jordy's **moomoo paper (simulated) account** through moomoo OpenD on `127.0.0.1:11111`. The cloud bot above is unchanged; this bot keeps its own book in `state/moomoo_portfolio.json`, `state/moomoo_trades.csv`, `state/moomoo_broker.json` and `state/moomoo_orders.csv` (all git-ignored).
+
+```bash
+python -m trader moomoo-scan                # after the US close (~06:00 MYT): scan, queue next-open orders
+python -m trader moomoo-execute [--dry-run] # ~10 min after the US open: send them to moomoo paper, reconcile
+python -m trader moomoo-status              # bot book, paper account, and whether they agree
+```
+
+- **Paper only.** Every order goes through `place_paper_order` in `trader/broker_moomoo.py`, which refuses anything but `TrdEnv.SIMULATE` and paper account 4405511. Trading is never unlocked. A test checks it is the only `place_order` call.
+- **Same rules, same $100k sizing**, so results compare with the cloud bot, even though the paper account holds $1M.
+- **Stocks** use moomoo daily bars (front-adjusted), cached in `data/moomoo/`. **Crypto and FX** can't trade on moomoo paper, so they stay simulated in the bot's book (Alpha Vantage if `ALPHAVANTAGE_API_KEY` is set, otherwise the cached CSVs).
+- Entries are market orders sized at that day's open exactly as the simulator would. Exits (stop, target, trend, time) are spotted at the scan and sent at the next execute, so moomoo exits a day after the bot's book does.
+- A stock order that never reached moomoo (execute didn't run) is cancelled at the next scan, so the book never holds what moomoo doesn't. Execute ends by comparing the two and reports any mismatch.
+- Cron wrappers: `~/.hermes/scripts/moomoo/paper_scan.sh` and `paper_execute.sh` (stdout is the Telegram summary; moomoo logs go to `paper_bot.log`). If OpenD isn't running they print one warning line.
+
 ## Caveats
 
 - The cached history is short, about 100 daily bars for stocks. A backtest on it is a smoke test, not evidence of an edge.
