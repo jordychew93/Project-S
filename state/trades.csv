@@ -1,2 +1,4 @@
 symbol,asset_class,setup,side,entry_date,exit_date,entry,exit,units,pnl,r_multiple,exit_reason
 NVDA,stock,support_bounce,long,2026-10-06,2026-10-08,242.22105,231.68016,82.0,-864.35,-1.01,stop hit
+EURUSD,fx,resistance_rejection,short,2026-09-30,2026-10-12,1.133773,1.115672,22050.26543227517,399.13,2.86,target hit
+QQQ,stock,support_bounce,long,2026-10-06,2026-10-13,760.92027,739.17023,26.0,-565.5,-1.04,gapped through stop
